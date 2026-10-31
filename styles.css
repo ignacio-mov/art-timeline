@@ -217,7 +217,7 @@ main {
   border: 1px solid var(--border);
   border-radius: 18px;
   display: flex;
-  justify-content: center;
+  justify-content: flex-start;
   box-shadow: 0 24px 70px rgba(0,0,0,0.16);
   scroll-behavior: smooth;
   -webkit-overflow-scrolling: touch;

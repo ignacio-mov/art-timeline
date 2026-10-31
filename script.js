@@ -1,10 +1,47 @@
-const APP_VERSION = 'art-timeline-2026-10-31-3';
-const currentVersion = new URLSearchParams(window.location.search).get('v');
+const VERSION_CHECK_INTERVAL_MS = 5 * 60 * 1000;
+const VERSION_CHECK_RESOURCES = ['index.html', 'script.js', 'styles.css', 'artworks.json'];
+let deployedResourceVersions;
 
-if (currentVersion !== APP_VERSION) {
-  const nextUrl = `${window.location.pathname}?v=${APP_VERSION}${window.location.hash}`;
-  window.location.replace(nextUrl);
+async function getDeployedResourceVersions() {
+  const entries = await Promise.all(VERSION_CHECK_RESOURCES.map(async (resource) => {
+    const url = new URL(resource, document.baseURI);
+    const response = await fetch(url, { method: 'HEAD', cache: 'no-store' });
+
+    if (!response.ok) {
+      throw new Error(`No se pudo comprobar ${resource}: HTTP ${response.status}`);
+    }
+
+    const version = response.headers.get('ETag') || response.headers.get('Last-Modified');
+    if (!version) {
+      throw new Error(`El servidor no proporcionó un validador para ${resource}`);
+    }
+
+    return [resource, version];
+  }));
+
+  return Object.fromEntries(entries);
 }
+
+async function checkForDeployedUpdates() {
+  try {
+    const latestVersions = await getDeployedResourceVersions();
+
+    if (deployedResourceVersions && VERSION_CHECK_RESOURCES.some(
+      (resource) => latestVersions[resource] !== deployedResourceVersions[resource]
+    )) {
+      window.location.reload();
+      return;
+    }
+
+    deployedResourceVersions = latestVersions;
+  } catch (error) {
+    console.warn('No se pudo comprobar si hay una versión nueva.', error);
+  } finally {
+    window.setTimeout(checkForDeployedUpdates, VERSION_CHECK_INTERVAL_MS);
+  }
+}
+
+void checkForDeployedUpdates();
 
 const FALLBACK_ARTWORKS = [
   { title: 'El Nacimiento de Venus', author: 'Sandro Botticelli', year: 1485, image: 'https://picsum.photos/id/1028/800/800' },
@@ -104,12 +141,21 @@ function normalizeArtwork(item) {
   }
 
   const image = safeValue(item.image?.value || item.image || item.img || item.url, '', '');
+  const imageUrl = new URL(image, window.location.href);
+
+  if (
+    imageUrl.hostname === 'commons.wikimedia.org'
+    && imageUrl.pathname.startsWith('/wiki/Special:FilePath/')
+  ) {
+    imageUrl.protocol = 'https:';
+    imageUrl.searchParams.set('width', '900');
+  }
 
   return {
     title,
     author,
     year: Number.isNaN(year) ? 0 : year,
-    image
+    image: imageUrl.href
   };
 }
 
@@ -117,7 +163,7 @@ async function loadArtworkDataset() {
   if (state.rawArtworks.length > 0) return;
 
   try {
-    const response = await fetch(`artworks.json?v=${APP_VERSION}`);
+    const response = await fetch('artworks.json');
     if (!response.ok) throw new Error('No se halló artworks.json');
 
     const data = await response.json();
