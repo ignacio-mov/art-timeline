@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Art Timeline Game</title>
+  <style>
+    :root {
+      --bg: #121214;
+      --card-bg: #1e1e24;
+      --accent: #d4af37;
+      --text: #f0f0f5;
+      --text-muted: #a0a0b0;
+      --dropzone: #2a2a35;
+      --dropzone-hover: #3d3d4d;
+      --error: #c62828;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+    body { background-color: var(--bg); color: var(--text); min-height: 100vh; display: flex; flex-direction: column; overflow-x: hidden; touch-action: manipulation; }
+
+    /* Header */
+    header { display: flex; justify-content: space-between; align-items: center; padding: 1rem 1.5rem; background: #18181c; border-bottom: 1px solid #2a2a35; }
+    h1 { font-size: 1.3rem; color: var(--accent); }
+    .stats { display: flex; gap: 1rem; font-size: 0.9rem; }
+    .stat span { font-weight: bold; color: var(--accent); }
+
+    /* Banner informativo tras Game Over */
+    .game-over-banner {
+      display: none;
+      width: 100%;
+      background: #1e1e24;
+      border-bottom: 2px solid var(--error);
+      padding: 1rem;
+      text-align: center;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+    }
+    .game-over-banner.active { display: block; }
+    .game-over-banner h2 { color: var(--error); font-size: 1.2rem; margin-bottom: 0.3rem; }
+    .failed-info { margin: 0.4rem 0; font-size: 0.95rem; color: var(--text-muted); }
+    .failed-info span { color: var(--accent); font-weight: bold; }
+    .banner-stats { font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.8rem; }
+    .banner-stats strong { color: var(--text); }
+
+    /* Main Area */
+    main { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: space-between; padding: 1rem; gap: 1rem; }
+
+    /* Timeline Container */
+    .timeline-wrapper {
+      width: 100%;
+      max-width: 1400px;
+      overflow-x: auto;
+      padding: 1.5rem 1rem;
+      background: #18181c;
+      border-radius: 12px;
+      display: flex;
+      justify-content: center;
+      scroll-behavior: smooth;
+      -webkit-overflow-scrolling: touch;
+    }
+    
+    .timeline {
+      display: flex;
+      align-items: center;
+      min-width: max-content;
+      margin: 0 auto;
+      min-height: 270px;
+    }
+
+    /* Dropzones con mejor área táctil */
+    .dropzone {
+      width: 40px;
+      height: 220px;
+      border: 2px dashed #444;
+      border-radius: 8px;
+      margin: 0 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+      background: var(--dropzone);
+      cursor: pointer;
+    }
+    .dropzone.drag-over { background: var(--dropzone-hover); border-color: var(--accent); transform: scale(1.05); }
+
+    /* Cartas del Timeline */
+    .card.timeline-card {
+      width: 160px;
+      background: var(--card-bg);
+      border-radius: 8px;
+      overflow: hidden;
+      border: 1px solid #333;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.6);
+      display: flex;
+      flex-direction: column;
+      user-select: none;
+    }
+    
+    .card-img-container {
+      width: 100%;
+      height: 140px;
+      background: #0b0b0e;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      cursor: zoom-in;
+    }
+    
+    .card.timeline-card img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      pointer-events: none;
+    }
+
+    .card.timeline-card .card-info { padding: 6px; display: flex; flex-direction: column; gap: 2px; font-size: 0.7rem; text-align: center; background: var(--card-bg); }
+    .card.timeline-card .card-title { font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text); }
+    .card.timeline-card .card-author { color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .card.timeline-card .card-year { font-weight: bold; color: var(--accent); font-size: 0.85rem; margin-top: 2px; border-top: 1px solid #333; padding-top: 2px; }
+
+    /* Carta Activa / Mazo */
+    .deck-area { display: flex; flex-direction: column; align-items: center; gap: 0.5rem; width: 100%; }
+    .deck-area h2 { font-size: 0.85rem; color: var(--text-muted); text-align: center; }
+
+    .card.deck-card {
+      width: 260px;
+      max-width: 90vw;
+      background: var(--card-bg);
+      border-radius: 10px;
+      overflow: hidden;
+      border: 2px solid var(--accent);
+      box-shadow: 0 8px 22px rgba(0,0,0,0.8);
+      display: flex;
+      flex-direction: column;
+      user-select: none;
+      cursor: grab;
+    }
+    .card.deck-card:active { cursor: grabbing; }
+    
+    .card.deck-card .card-img-container {
+      width: 100%;
+      height: 200px;
+      background: #0b0b0e;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      cursor: zoom-in;
+    }
+    
+    .card.deck-card img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      pointer-events: none;
+    }
+
+    .card.deck-card .card-info { padding: 8px; text-align: center; font-size: 0.8rem; color: var(--text-muted); background: var(--card-bg); }
+    .card.deck-card .card-year { font-size: 0.95rem; color: var(--accent); font-weight: bold; margin-top: 2px; }
+
+    /* Lightbox Modal */
+    .lightbox-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.95);
+      z-index: 1000;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 1rem;
+    }
+    .lightbox-overlay.active { display: flex; }
+    
+    .lightbox-content {
+      position: relative;
+      max-width: 95vw;
+      max-height: 85vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.8rem;
+    }
+
+    .lightbox-content img {
+      max-width: 95vw;
+      max-height: 65vh;
+      object-fit: contain;
+      border-radius: 4px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.8);
+    }
+
+    .lightbox-caption { text-align: center; color: var(--text); }
+    .lightbox-caption h3 { font-size: 1.1rem; color: var(--accent); margin-bottom: 0.2rem; }
+    .lightbox-caption p { font-size: 0.85rem; color: var(--text-muted); }
+
+    .lightbox-close {
+      position: absolute;
+      top: -45px;
+      right: 0;
+      background: rgba(255,255,255,0.1);
+      border: none;
+      color: var(--text);
+      font-size: 1.8rem;
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .btn {
+      background: var(--accent);
+      color: #000;
+      border: none;
+      padding: 0.6rem 1.4rem;
+      font-weight: bold;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.95rem;
+      transition: filter 0.2s;
+    }
+    .btn:hover { filter: brightness(1.1); }
+
+    /* Media Query para pantallas pequeñas (móviles) */
+    @media (max-width: 600px) {
+      header { padding: 0.8rem 1rem; }
+      h1 { font-size: 1.1rem; }
+      .timeline-wrapper { padding: 1rem 0.5rem; }
+      .timeline { min-height: 230px; }
+      .dropzone { width: 34px; height: 180px; margin: 0 4px; }
+      .card.timeline-card { width: 130px; }
+      .card-img-container { height: 110px; }
+      .card.deck-card { width: 220px; }
+      .card.deck-card .card-img-container { height: 150px; }
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>🎨 Art Timeline</h1>
+    <div class="stats">
+      <div class="stat">Puntuación: <span id="score">0</span></div>
+      <div class="stat">Récord: <span id="high-score">0</span></div>
+    </div>
+  </header>
+
+  <!-- Banner Game Over -->
+  <div class="game-over-banner" id="game-over-banner">
+    <h2>¡Fin del juego!</h2>
+    <div class="failed-info" id="failed-artwork-info"></div>
+    <div class="banner-stats">
+      Puntuación obtenida: <strong id="final-score">0</strong> | Récord actual: <strong id="final-high-score">0</strong>
+    </div>
+    <button class="btn" onclick="restartGame()">Jugar de nuevo</button>
+  </div>
+
+  <main>
+    <!-- Área de Línea de Tiempo -->
+    <div class="timeline-wrapper" id="timeline-wrapper">
+      <div class="timeline" id="timeline"></div>
+    </div>
+
+    <!-- Área de la Carta Actual a Colocar -->
+    <div class="deck-area" id="deck-area">
+      <h2>Toca un hueco directo o arrastra la carta:</h2>
+      <div id="current-card-container"></div>
+    </div>
+  </main>
+
+  <!-- Lightbox Modal -->
+  <div class="lightbox-overlay" id="lightbox-overlay" onclick="closeLightbox()">
+    <div class="lightbox-content" onclick="event.stopPropagation()">
+      <button class="lightbox-close" onclick="closeLightbox()">&times;</button>
+      <img id="lightbox-img" src="" alt="">
+      <div class="lightbox-caption">
+        <h3 id="lightbox-title"></h3>
+        <p id="lightbox-details"></p>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const FALLBACK_ARTWORKS = [
+      { title: "El Nacimiento de Venus", author: "Sandro Botticelli", year: 1485, image: "https://picsum.photos/id/1028/800/800" },
+      { title: "Mona Lisa", author: "Leonardo da Vinci", year: 1503, image: "https://picsum.photos/id/1025/800/800" },
+      { title: "Las Meninas", author: "Diego Velázquez", year: 1656, image: "https://picsum.photos/id/1074/800/800" },
+      { title: "La Joven de la Perla", author: "Johannes Vermeer", year: 1665, image: "https://picsum.photos/id/1062/800/800" }
+    ];
+
+    let rawArtworks = [];
+    let deck = [];
+    let timelineState = [];
+    let currentArtwork = null;
+    let isGameOver = false;
+    let highScore = localStorage.getItem('art_timeline_record') || 0;
+
+    const timelineEl = document.getElementById('timeline');
+    const timelineWrapper = document.getElementById('timeline-wrapper');
+    const currentCardContainer = document.getElementById('current-card-container');
+    const deckArea = document.getElementById('deck-area');
+    const scoreEl = document.getElementById('score');
+    const highScoreEl = document.getElementById('high-score');
+    const gameOverBanner = document.getElementById('game-over-banner');
+    const failedArtworkInfoEl = document.getElementById('failed-artwork-info');
+
+    const lightboxOverlay = document.getElementById('lightbox-overlay');
+    const lightboxImg = document.getElementById('lightbox-img');
+    const lightboxTitle = document.getElementById('lightbox-title');
+    const lightboxDetails = document.getElementById('lightbox-details');
+
+    function openLightbox(art, isHidden = false) {
+      lightboxImg.src = art.image;
+      if (isHidden) {
+        lightboxTitle.textContent = "Obra a colocar";
+        lightboxDetails.textContent = "Inserta la obra en el tiempo para descubrir sus datos reales";
+      } else {
+        lightboxTitle.textContent = art.title;
+        const formattedYear = art.year < 0 ? `${Math.abs(art.year)} a.C.` : art.year;
+        lightboxDetails.textContent = `${art.author} — Año: ${formattedYear}`;
+      }
+      lightboxOverlay.classList.add('active');
+    }
+
+    function closeLightbox() {
+      lightboxOverlay.classList.remove('active');
+    }
+
+    async function loadArtworkDataset() {
+      if (rawArtworks.length > 0) return;
+      try {
+        const response = await fetch('artworks.json');
+        if (!response.ok) throw new Error("No se halló artworks.json");
+        const data = await response.json();
+
+        let itemsList = [];
+        if (data.results && data.results.bindings) {
+          itemsList = data.results.bindings;
+        } else if (Array.isArray(data)) {
+          itemsList = data;
+        } else {
+          throw new Error("Formato de JSON no reconocido.");
+        }
+
+        rawArtworks = itemsList.map(item => {
+          const title = item.title?.value || item.title || item.paintingLabel?.value || item.paintingLabel || item.name || "Sin título";
+          const author = item.author?.value || item.author || item.authorLabel?.value || item.authorLabel || item.artist || item.creator || "Anónimo";
+          
+          let rawYear = item.year?.value || item.year || item.inception?.value || item.inception || item.date || 0;
+          let year = parseInt(rawYear);
+          if (isNaN(year) && typeof rawYear === 'string') {
+            const match = rawYear.match(/-?\d{1,4}/);
+            year = match ? parseInt(match[0]) : 0;
+          }
+
+          const image = item.image?.value || item.image || item.img || item.url || "";
+          return { title, author, year: isNaN(year) ? 0 : year, image };
+        }).filter(art => art.year !== 0 && art.image !== "");
+
+        if (rawArtworks.length === 0) throw new Error("Sin elementos válidos.");
+
+      } catch (err) {
+        console.warn("Aviso:", err.message, "Usando datos de respaldo.");
+        rawArtworks = FALLBACK_ARTWORKS;
+      }
+    }
+
+    function shuffleArray(array) {
+      const arr = [...array];
+      for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+      }
+      return arr;
+    }
+
+    async function initGame() {
+      isGameOver = false;
+      highScoreEl.textContent = highScore;
+      gameOverBanner.classList.remove('active');
+      deckArea.style.display = 'flex';
+
+      await loadArtworkDataset();
+
+      deck = shuffleArray(rawArtworks);
+      timelineState = [deck.pop()];
+
+      loadNextArtwork();
+      renderTimeline();
+    }
+
+    function loadNextArtwork() {
+      if (deck.length === 0) {
+        alert("¡Felicidades! Has colocado todas las obras correctamente.");
+        return;
+      }
+      currentArtwork = deck.pop();
+      renderCurrentCard();
+      scoreEl.textContent = timelineState.length - 1;
+    }
+
+    function renderTimeline() {
+      timelineEl.innerHTML = '';
+
+      if (!isGameOver) timelineEl.appendChild(createDropzone(0));
+
+      timelineState.forEach((art, index) => {
+        timelineEl.appendChild(createCardElement(art, false));
+        if (!isGameOver) timelineEl.appendChild(createDropzone(index + 1));
+      });
+
+      setTimeout(() => {
+        timelineWrapper.scrollLeft = (timelineWrapper.scrollWidth - timelineWrapper.clientWidth) / 2;
+      }, 50);
+    }
+
+    function renderCurrentCard() {
+      currentCardContainer.innerHTML = '';
+      if (!currentArtwork) return;
+
+      const card = createCardElement(currentArtwork, true);
+      card.classList.add('deck-card');
+      card.setAttribute('draggable', 'true');
+      card.addEventListener('dragstart', (e) => {
+        e.dataTransfer.setData('text/plain', 'artwork');
+        e.dataTransfer.effectAllowed = 'move';
+      });
+
+      currentCardContainer.appendChild(card);
+    }
+
+    function createCardElement(art, isHidden = false) {
+      const card = document.createElement('div');
+      card.className = isHidden ? 'card deck-card' : 'card timeline-card';
+      
+      const title = isHidden ? "Obra a colocar" : art.title;
+      const author = isHidden ? "Inserta en el tiempo" : art.author;
+      const year = isHidden ? "????" : (art.year < 0 ? `${Math.abs(art.year)} a.C.` : art.year);
+
+      card.innerHTML = `
+        <div class="card-img-container" title="Toca para ampliar">
+          <img src="${art.image}" alt="${title}">
+        </div>
+        <div class="card-info">
+          <div class="card-title" title="${art.title}">${title}</div>
+          <div class="card-author" title="${art.author}">${author}</div>
+          <div class="card-year">${year}</div>
+        </div>
+      `;
+
+      const imgContainer = card.querySelector('.card-img-container');
+      imgContainer.addEventListener('click', (e) => {
+        openLightbox(art, isHidden);
+      });
+
+      return card;
+    }
+
+    function createDropzone(index) {
+      const zone = document.createElement('div');
+      zone.className = 'dropzone';
+      zone.dataset.index = index;
+
+      zone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        zone.classList.add('drag-over');
+      });
+      zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
+      zone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        zone.classList.remove('drag-over');
+        handlePlacement(parseInt(zone.dataset.index));
+      });
+      zone.addEventListener('click', () => handlePlacement(parseInt(zone.dataset.index)));
+
+      return zone;
+    }
+
+    function handlePlacement(insertedIndex) {
+      if (isGameOver) return;
+
+      const tempTimeline = [...timelineState];
+      tempTimeline.splice(insertedIndex, 0, currentArtwork);
+
+      const isCorrect = tempTimeline.every((item, i) => i === 0 || item.year >= tempTimeline[i - 1].year);
+
+      if (isCorrect) {
+        timelineState = tempTimeline;
+        renderTimeline();
+        loadNextArtwork();
+      } else {
+        timelineState.push(currentArtwork);
+        timelineState.sort((a, b) => a.year - b.year);
+        handleGameOver(currentArtwork);
+      }
+    }
+
+    function handleGameOver(failedCard) {
+      isGameOver = true;
+      const currentScore = timelineState.length - 2;
+
+      if (currentScore > highScore) {
+        highScore = currentScore;
+        localStorage.setItem('art_timeline_record', highScore);
+        highScoreEl.textContent = highScore;
+      }
+
+      deckArea.style.display = 'none';
+
+      const formattedYear = failedCard.year < 0 ? `${Math.abs(failedCard.year)} a.C.` : failedCard.year;
+      failedArtworkInfoEl.innerHTML = `
+        Colocaste mal: <strong>${failedCard.title}</strong> (${failedCard.author}) — Año real: <span>${formattedYear}</span>
+      `;
+
+      document.getElementById('final-score').textContent = Math.max(0, currentScore);
+      document.getElementById('final-high-score').textContent = highScore;
+      gameOverBanner.classList.add('active');
+
+      renderTimeline();
+    }
+
+    function restartGame() {
+      initGame();
+    }
+
+    initGame();
+  </script>
+</body>
+</html>
