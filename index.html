@@ -538,7 +538,7 @@
   </div>
 
   <script>
-    const APP_VERSION = 'art-timeline-2026-10-31-1';
+    const APP_VERSION = 'art-timeline-2026-10-31-2';
     const currentVersion = new URLSearchParams(window.location.search).get('v');
 
     if (currentVersion !== APP_VERSION) {
@@ -595,7 +595,7 @@
 
     function openLightbox(art, isHidden = false) {
       lightboxImg.src = art.image;
-      lightboxImg.alt = art.title;
+      lightboxImg.alt = isHidden ? 'Obra a colocar' : art.title;
 
       if (isHidden) {
         lightboxTitle.textContent = 'Obra a colocar';
@@ -737,14 +737,15 @@
       const title = isHidden ? 'Obra a colocar' : art.title;
       const author = isHidden ? 'Inserta en el tiempo' : art.author;
       const year = isHidden ? '????' : formatYear(art.year);
+      const imageLabel = isHidden ? 'Ampliar imagen de la obra a colocar' : `Ampliar imagen de ${art.title}`;
 
       card.innerHTML = `
-        <div class="card-img-container" title="Haz clic para ampliar" tabindex="0" aria-label="Ampliar imagen de ${art.title}">
+        <div class="card-img-container" title="Haz clic para ampliar" tabindex="0" aria-label="${imageLabel}">
           <img src="${art.image}" alt="${title}">
         </div>
         <div class="card-info">
-          <div class="card-title" title="${art.title}">${title}</div>
-          <div class="card-author" title="${art.author}">${author}</div>
+          <div class="card-title" title="${title}">${title}</div>
+          <div class="card-author" title="${author}">${author}</div>
           <div class="card-year">${year}</div>
         </div>
       `;
@@ -873,7 +874,7 @@
       state.currentArtwork = state.deck.pop();
       renderCurrentCard();
       setScore();
-      setStatus(`Siguiente obra: ${state.currentArtwork.title}. Colócala en su posición correcta.`, 'info');
+      setStatus('Siguiente obra: colócala en su posición correcta.', 'info');
     }
 
     function handleGameOver(failedCard) {
