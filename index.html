@@ -14,6 +14,7 @@
       --dropzone: #2a2a35;
       --dropzone-hover: #3d3d4d;
       --error: #c62828;
+      --success: #2e7d32;
       --border: rgba(255,255,255,0.08);
       --shadow: rgba(0,0,0,0.6);
     }
@@ -120,6 +121,44 @@
       justify-content: space-between;
       padding: 1rem;
       gap: 1rem;
+    }
+
+    .status-panel {
+      width: min(960px, 100%);
+      background: rgba(30, 30, 36, 0.96);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 0.8rem 1rem;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+      transition: border-color 0.2s ease, transform 0.2s ease;
+    }
+
+    .status-panel.info {
+      border-color: rgba(212,175,55,0.7);
+    }
+
+    .status-panel.success {
+      border-color: rgba(46, 125, 50, 0.8);
+    }
+
+    .status-panel.error {
+      border-color: rgba(198, 40, 40, 0.8);
+    }
+
+    .status-text {
+      color: var(--text);
+      text-align: center;
+      font-size: 0.9rem;
+      line-height: 1.4;
+      min-height: 1.4em;
+    }
+
+    .status-panel.success .status-text {
+      color: #dfffe9;
+    }
+
+    .status-panel.error .status-text {
+      color: #ffd6d6;
     }
 
     .timeline-wrapper {
@@ -472,6 +511,10 @@
   </div>
 
   <main>
+    <div class="status-panel info" id="status-panel" aria-live="polite" aria-atomic="true">
+      <div class="status-text" id="status-text">Coloca la obra en su sitio histórico.</div>
+    </div>
+
     <div class="timeline-wrapper" id="timeline-wrapper">
       <div class="timeline" id="timeline"></div>
     </div>
@@ -525,6 +568,8 @@
     const lightboxTitle = document.getElementById('lightbox-title');
     const lightboxDetails = document.getElementById('lightbox-details');
     const closeLightboxButton = document.getElementById('close-lightbox');
+    const statusPanel = document.getElementById('status-panel');
+    const statusText = document.getElementById('status-text');
 
     function safeValue(value, fallback = 'Sin dato') {
       return value ?? fallback;
@@ -532,6 +577,12 @@
 
     function formatYear(year) {
       return year < 0 ? `${Math.abs(year)} a.C.` : year;
+    }
+
+    function setStatus(message, type = 'info') {
+      statusPanel.classList.remove('info', 'success', 'error');
+      statusPanel.classList.add(type);
+      statusText.textContent = message;
     }
 
     function openLightbox(art, isHidden = false) {
@@ -751,10 +802,33 @@
       const isCorrect = tempTimeline.every((item, index) => index === 0 || item.year >= tempTimeline[index - 1].year);
 
       if (isCorrect) {
+        const previous = tempTimeline[insertedIndex - 1];
+        const next = tempTimeline[insertedIndex + 1];
+        const relation = previous && next
+          ? `entre ${previous.title} (${formatYear(previous.year)}) y ${next.title} (${formatYear(next.year)})`
+          : previous
+            ? `después de ${previous.title} (${formatYear(previous.year)})`
+            : `antes que todas las obras actuales`;
+
+        setStatus(`¡Correcto! ${state.currentArtwork.title} queda ${relation}.`, 'success');
+
         state.timelineState = tempTimeline;
         renderTimeline();
         loadNextArtwork();
       } else {
+        const before = state.timelineState[insertedIndex - 1];
+        const after = state.timelineState[insertedIndex];
+
+        let hint = 'Está fuera de orden con la secuencia actual.';
+        if (before && state.currentArtwork.year < before.year) {
+          hint = `Está demasiado tarde. Debería ir antes de ${before.title} (${formatYear(before.year)}).`;
+        } else if (after && state.currentArtwork.year > after.year) {
+          hint = `Está demasiado pronto. Debería ir después de ${after.title} (${formatYear(after.year)}).`;
+        } else if (before && after) {
+          hint = `Debería ir entre ${before.title} (${formatYear(before.year)}) y ${after.title} (${formatYear(after.year)}).`;
+        }
+
+        setStatus(`No va ahí: ${hint}`, 'error');
         state.timelineState.push(state.currentArtwork);
         state.timelineState.sort((a, b) => a.year - b.year);
         handleGameOver(state.currentArtwork);
@@ -782,6 +856,7 @@
           document.getElementById('final-score').textContent = finalScore;
           document.getElementById('final-high-score').textContent = state.highScore;
           gameOverBanner.classList.add('active');
+          setStatus('¡Cronología completa! Has ganado.', 'success');
           renderTimeline(true);
         }
         return;
@@ -790,6 +865,7 @@
       state.currentArtwork = state.deck.pop();
       renderCurrentCard();
       setScore();
+      setStatus(`Siguiente obra: ${state.currentArtwork.title}. Colócala en su posición correcta.`, 'info');
     }
 
     function handleGameOver(failedCard) {
@@ -821,6 +897,7 @@
       highScoreEl.textContent = String(state.highScore);
       gameOverBanner.classList.remove('active');
       deckArea.style.display = 'flex';
+      setStatus('Coloca la obra en su sitio histórico.', 'info');
 
       await loadArtworkDataset();
 
