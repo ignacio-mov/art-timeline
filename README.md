@@ -15,7 +15,8 @@ python3 -m http.server 8000
 Then open <http://localhost:8000> in a browser. Select a gap in the timeline or
 drag the current artwork into place. Correct placements increase your score;
 the best score is saved in browser local storage. Select an artwork image to
-open the enlarged view.
+open the enlarged view. Artworks whose images fail to load are automatically
+skipped without affecting your progress.
 
 Artwork records are loaded from `artworks.json`. If the dataset cannot be
 loaded, the game uses a small built-in fallback set. Images are loaded from

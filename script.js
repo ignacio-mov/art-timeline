@@ -80,6 +80,7 @@ const state = {
   timelineState: [],
   currentArtwork: null,
   isGameOver: false,
+  skippedArtworkCount: 0,
   highScore: Number(localStorage.getItem('art_timeline_record')) || 0
 };
 
@@ -87,6 +88,8 @@ const timelineEl = document.getElementById('timeline');
 const timelineWrapper = document.getElementById('timeline-wrapper');
 const currentCardContainer = document.getElementById('current-card-container');
 const deckArea = document.getElementById('deck-area');
+const howToPlayEl = document.getElementById('how-to-play');
+const dismissInstructionsButton = document.getElementById('dismiss-instructions');
 const scoreEl = document.getElementById('score');
 const highScoreEl = document.getElementById('high-score');
 const gameOverBanner = document.getElementById('game-over-banner');
@@ -99,6 +102,11 @@ const lightboxDetails = document.getElementById('lightbox-details');
 const closeLightboxButton = document.getElementById('close-lightbox');
 const statusPanel = document.getElementById('status-panel');
 const statusText = document.getElementById('status-text');
+let lightboxReturnFocus;
+
+if (sessionStorage.getItem('art_timeline_instructions_dismissed') === 'true') {
+  howToPlayEl.hidden = true;
+}
 
 function setStatus(message, type = 'info') {
   statusPanel.classList.remove('info', 'success', 'error');
@@ -107,6 +115,7 @@ function setStatus(message, type = 'info') {
 }
 
 function openLightbox(art, isHidden = false) {
+  lightboxReturnFocus = document.activeElement;
   lightboxImg.src = art.image;
   lightboxImg.alt = isHidden ? 'Obra a colocar' : art.title;
 
@@ -119,12 +128,18 @@ function openLightbox(art, isHidden = false) {
   }
 
   lightboxOverlay.classList.add('active');
+  lightboxOverlay.setAttribute('aria-hidden', 'false');
   document.body.style.overflow = 'hidden';
+  closeLightboxButton.focus();
 }
 
 function closeLightbox() {
   lightboxOverlay.classList.remove('active');
+  lightboxOverlay.setAttribute('aria-hidden', 'true');
   document.body.style.overflow = '';
+  if (lightboxReturnFocus instanceof HTMLElement && lightboxReturnFocus.isConnected) {
+    lightboxReturnFocus.focus();
+  }
 }
 
 function scrollTimelineToView(forceStart = false) {
@@ -183,6 +198,9 @@ function setScore() {
 }
 
 function renderTimeline(forceStart = false) {
+  const activeDropzone = document.activeElement?.classList.contains('dropzone')
+    ? Number.parseInt(document.activeElement.dataset.index, 10)
+    : null;
   timelineEl.innerHTML = '';
 
   if (!state.isGameOver) {
@@ -197,6 +215,11 @@ function renderTimeline(forceStart = false) {
   });
 
   scrollTimelineToView(forceStart);
+
+  if (activeDropzone !== null) {
+    const focusIndex = Math.min(activeDropzone, state.timelineState.length);
+    timelineEl.querySelector(`[data-index="${focusIndex}"]`)?.focus({ preventScroll: true });
+  }
 }
 
 function renderCurrentCard() {
@@ -215,29 +238,79 @@ function renderCurrentCard() {
   currentCardContainer.appendChild(card);
 }
 
+function skipCurrentArtwork(art) {
+  if (state.isGameOver || state.currentArtwork !== art) return;
+
+  state.currentArtwork = null;
+  state.skippedArtworkCount += 1;
+  loadNextArtwork();
+
+  if (!state.isGameOver) {
+    setStatus(`No se pudo cargar la imagen de «${art.title}». Obra omitida; continúa la partida.`, 'info');
+  }
+}
+
 function createCardElement(art, isHidden = false) {
   const card = document.createElement('div');
   card.className = isHidden ? 'card deck-card' : 'card timeline-card';
-
   const title = isHidden ? 'Obra a colocar' : art.title;
   const author = isHidden ? 'Inserta en el tiempo' : art.author;
-  const year = isHidden ? '????' : formatYear(art.year);
-  const imageLabel = isHidden ? 'Ampliar imagen de la obra a colocar' : `Ampliar imagen de ${art.title}`;
+  const imgContainer = document.createElement('div');
+  imgContainer.className = 'card-img-container';
+  imgContainer.title = 'Haz clic para ampliar';
+  imgContainer.tabIndex = 0;
+  imgContainer.setAttribute('role', 'button');
+  imgContainer.setAttribute('aria-haspopup', 'dialog');
+  imgContainer.setAttribute('aria-label', isHidden
+    ? 'Ampliar imagen de la obra a colocar'
+    : `Ampliar imagen de ${art.title}`);
 
-  card.innerHTML = `
-    <div class="card-img-container" title="Haz clic para ampliar" tabindex="0" aria-label="${imageLabel}">
-      <img src="${art.image}" alt="${title}">
-    </div>
-    <div class="card-info">
-      <div class="card-title" title="${title}">${title}</div>
-      <div class="card-author" title="${author}">${author}</div>
-      <div class="card-year">${year}</div>
-    </div>
-  `;
+  const image = document.createElement('img');
+  image.alt = title;
+  image.loading = isHidden ? 'eager' : 'lazy';
+  image.addEventListener('error', () => {
+    imgContainer.classList.add('image-unavailable');
+    const fallback = document.createElement('span');
+    fallback.className = 'image-fallback';
+    fallback.textContent = 'Imagen no disponible';
+    fallback.setAttribute('role', 'img');
+    fallback.setAttribute('aria-label', `Imagen no disponible de ${art.title}`);
+    imgContainer.replaceChildren(fallback);
 
-  const imgContainer = card.querySelector('.card-img-container');
+    if (isHidden && state.currentArtwork === art) {
+      skipCurrentArtwork(art);
+    } else {
+      imgContainer.removeAttribute('role');
+      imgContainer.removeAttribute('tabindex');
+      imgContainer.removeAttribute('aria-haspopup');
+      imgContainer.removeAttribute('aria-label');
+      imgContainer.removeAttribute('title');
+    }
+  }, { once: true });
+
+  image.src = art.image;
+  imgContainer.appendChild(image);
+
+  const info = document.createElement('div');
+  info.className = 'card-info';
+  const titleEl = document.createElement('div');
+  titleEl.className = 'card-title';
+  titleEl.title = title;
+  titleEl.textContent = title;
+  const authorEl = document.createElement('div');
+  authorEl.className = 'card-author';
+  authorEl.title = author;
+  authorEl.textContent = author;
+  const yearEl = document.createElement('div');
+  yearEl.className = 'card-year';
+  yearEl.textContent = isHidden ? '????' : String(formatYear(art.year));
+  info.append(titleEl, authorEl, yearEl);
+  card.append(imgContainer, info);
+
   const activateLightbox = (event) => {
+    if (imgContainer.classList.contains('image-unavailable')) return;
     if (event) event.preventDefault();
+    imgContainer.focus();
     openLightbox(art, isHidden);
   };
 
@@ -258,7 +331,21 @@ function createDropzone(index) {
   zone.dataset.index = String(index);
   zone.setAttribute('role', 'button');
   zone.setAttribute('tabindex', '0');
-  zone.setAttribute('aria-label', `Insertar obra en la posición ${index}`);
+  const previous = state.timelineState[index - 1];
+  const next = state.timelineState[index];
+  const visibleLabel = document.createElement('span');
+  const accessibleLabel = previous && next
+    ? `Entre ${previous.title} (${formatYear(previous.year)}) y ${next.title} (${formatYear(next.year)})`
+    : previous
+      ? `Después de ${previous.title} (${formatYear(previous.year)})`
+      : `Antes de ${next.title} (${formatYear(next.year)})`;
+  visibleLabel.textContent = previous && next
+    ? `${formatYear(previous.year)}–${formatYear(next.year)}`
+    : previous
+      ? `Después de ${formatYear(previous.year)}`
+      : `Antes de ${formatYear(next.year)}`;
+  zone.setAttribute('aria-label', `Insertar obra ${accessibleLabel}`);
+  zone.appendChild(visibleLabel);
 
   const handleDrop = (event) => {
     event.preventDefault();
@@ -336,7 +423,8 @@ function loadNextArtwork() {
     state.isGameOver = true;
     deckArea.style.display = 'none';
     setScore();
-    const hasWon = isTimelineComplete(state.timelineState, state.rawArtworks.length);
+    const hasWon = isTimelineComplete(state.timelineState, state.rawArtworks.length)
+      || state.timelineState.length + state.skippedArtworkCount === state.rawArtworks.length;
 
     if (hasWon) {
       const finalScore = Math.max(0, state.timelineState.length - 1);
@@ -346,12 +434,15 @@ function loadNextArtwork() {
         highScoreEl.textContent = String(state.highScore);
       }
 
-      failedArtworkInfoEl.innerHTML = '¡Lo has conseguido! Has ordenado correctamente la cronología completa.';
+      failedArtworkInfoEl.textContent = state.skippedArtworkCount
+        ? `Has ordenado ${finalScore} obras; ${state.skippedArtworkCount} se omitieron porque no cargaron sus imágenes.`
+        : '¡Lo has conseguido! Has ordenado correctamente la cronología completa.';
       document.getElementById('final-score').textContent = finalScore;
       document.getElementById('final-high-score').textContent = state.highScore;
       gameOverBanner.classList.add('active');
       setStatus('¡Cronología completa! Has ganado.', 'success');
       renderTimeline(true);
+      restartButton.focus();
     }
     return;
   }
@@ -375,15 +466,32 @@ function handleGameOver(failedCard) {
   deckArea.style.display = 'none';
 
   const formattedYear = formatYear(failedCard.year);
-  failedArtworkInfoEl.innerHTML = `
-    Colocaste mal: <strong>${failedCard.title}</strong> (${failedCard.author}) — Año real: <span>${formattedYear}</span>
-  `;
+  const sortedWithoutFailed = state.timelineState.filter((art) => art !== failedCard);
+  const correctIndex = sortedWithoutFailed.findIndex((art) => art.year > failedCard.year);
+  const resolvedIndex = correctIndex === -1 ? sortedWithoutFailed.length : correctIndex;
+  const previous = sortedWithoutFailed[resolvedIndex - 1];
+  const next = sortedWithoutFailed[resolvedIndex];
+  const correctPosition = previous && next
+    ? `entre ${previous.title} (${formatYear(previous.year)}) y ${next.title} (${formatYear(next.year)})`
+    : previous
+      ? `después de ${previous.title} (${formatYear(previous.year)})`
+      : next
+        ? `antes de ${next.title} (${formatYear(next.year)})`
+        : 'en cualquier posición';
+
+  failedArtworkInfoEl.replaceChildren(
+    document.createTextNode('Colocaste mal: '),
+    document.createElement('strong'),
+    document.createTextNode(` (${failedCard.author}) — Año real: ${formattedYear}. Debía ir ${correctPosition}.`)
+  );
+  failedArtworkInfoEl.querySelector('strong').textContent = failedCard.title;
 
   document.getElementById('final-score').textContent = currentScore;
   document.getElementById('final-high-score').textContent = state.highScore;
   gameOverBanner.classList.add('active');
 
   renderTimeline(true);
+  restartButton.focus();
 }
 
 async function initGame() {
@@ -403,6 +511,7 @@ async function initGame() {
   state.deck = shuffleArray(state.rawArtworks);
   state.timelineState = [state.deck.pop()];
   state.currentArtwork = null;
+  state.skippedArtworkCount = 0;
 
   loadNextArtwork();
   renderTimeline(true);
@@ -416,6 +525,10 @@ function reportInitializationError(error) {
 restartButton.addEventListener('click', () => {
   void initGame().catch(reportInitializationError);
 });
+dismissInstructionsButton.addEventListener('click', () => {
+  howToPlayEl.hidden = true;
+  sessionStorage.setItem('art_timeline_instructions_dismissed', 'true');
+});
 closeLightboxButton.addEventListener('click', closeLightbox);
 lightboxOverlay.addEventListener('click', (event) => {
   if (event.target === lightboxOverlay) {
@@ -423,8 +536,13 @@ lightboxOverlay.addEventListener('click', (event) => {
   }
 });
 document.addEventListener('keydown', (event) => {
-  if (event.key === 'Escape' && lightboxOverlay.classList.contains('active')) {
+  if (!lightboxOverlay.classList.contains('active')) return;
+
+  if (event.key === 'Escape') {
     closeLightbox();
+  } else if (event.key === 'Tab') {
+    event.preventDefault();
+    closeLightboxButton.focus();
   }
 });
 

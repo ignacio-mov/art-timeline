@@ -19,7 +19,7 @@
     </div>
     <div class="stats" aria-label="Estadísticas de la partida">
       <div class="stat">
-        <span class="stat-label">Puntuación</span>
+        <span class="stat-label">Avance</span>
         <span class="stat-value" id="score">0</span>
       </div>
       <div class="stat">
@@ -39,22 +39,28 @@
   </div>
 
   <main>
+    <aside class="how-to-play" id="how-to-play" aria-label="Cómo jugar">
+      <p>Coloca cada obra en orden cronológico. Un error termina la partida. Toca un hueco o arrastra la carta; toca una imagen para ampliarla.</p>
+      <button class="instructions-dismiss" type="button" id="dismiss-instructions">Entendido</button>
+    </aside>
+
     <div class="status-panel info" id="status-panel" aria-live="polite" aria-atomic="true">
       <div class="status-text" id="status-text">Coloca la obra en su sitio histórico.</div>
     </div>
 
-    <div class="timeline-wrapper" id="timeline-wrapper">
+    <div class="timeline-wrapper" id="timeline-wrapper" role="region" aria-label="Línea del tiempo; desplázate horizontalmente para ver todas las obras" tabindex="0">
       <div class="timeline" id="timeline"></div>
     </div>
+    <p class="timeline-hint">Desliza o desplázate horizontalmente para recorrer la línea del tiempo.</p>
 
     <div class="deck-area" id="deck-area">
-      <h2>Toca un hueco directo o arrastra la carta:</h2>
+      <h2>¿Dónde va esta obra?</h2>
       <p class="deck-hint">Haz clic en cualquier imagen para verla más grande.</p>
       <div id="current-card-container"></div>
     </div>
   </main>
 
-  <div class="lightbox-overlay" id="lightbox-overlay" role="dialog" aria-modal="true" aria-labelledby="lightbox-title">
+  <div class="lightbox-overlay" id="lightbox-overlay" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="lightbox-title">
     <div class="lightbox-content" tabindex="-1">
       <button class="lightbox-close" type="button" aria-label="Cerrar vista ampliada" id="close-lightbox">&times;</button>
       <img id="lightbox-img" src="" alt="">
