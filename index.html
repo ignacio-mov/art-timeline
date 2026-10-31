@@ -15,6 +15,7 @@
       --dropzone-hover: #3d3d4d;
       --error: #c62828;
       --success: #2e7d32;
+      --warning: #f6c453;
       --border: rgba(255,255,255,0.08);
       --shadow: rgba(0,0,0,0.6);
     }
@@ -77,7 +78,7 @@
       width: 100%;
       background: rgba(30, 30, 36, 0.96);
       border-bottom: 2px solid var(--error);
-      padding: 1rem;
+      padding: 1rem 1rem 1.3rem;
       text-align: center;
       box-shadow: 0 4px 15px rgba(0,0,0,0.5);
     }
@@ -86,16 +87,100 @@
       display: block;
     }
 
+    .game-over-banner.win {
+      border-bottom-color: var(--success);
+      background: linear-gradient(180deg, rgba(21, 35, 24, 0.96), rgba(30, 30, 36, 0.96));
+    }
+
+    .game-over-banner-content {
+      max-width: 900px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.8rem;
+    }
+
+    .outcome-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 999px;
+      padding: 0.3rem 0.8rem;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.1);
+      font-size: 0.75rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      font-weight: bold;
+    }
+
+    .game-over-banner.win .outcome-badge {
+      background: rgba(46,125,50,0.15);
+      border-color: rgba(46,125,50,0.45);
+      color: #dfffe9;
+    }
+
     .game-over-banner h2 {
       color: var(--error);
+      font-size: 1.35rem;
+      margin-bottom: 0.1rem;
+    }
+
+    .game-over-banner.win h2 {
+      color: #dfffe9;
+    }
+
+    .result-summary {
+      max-width: 620px;
+      font-size: 0.98rem;
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+
+    .results-grid {
+      display: flex;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      width: 100%;
+    }
+
+    .result-metric {
+      min-width: 120px;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 10px;
+      padding: 0.65rem 0.8rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.2rem;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.03);
+    }
+
+    .metric-label {
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+
+    .metric-value {
+      color: var(--text);
       font-size: 1.2rem;
-      margin-bottom: 0.3rem;
+      font-weight: bold;
     }
 
     .failed-info {
-      margin: 0.4rem 0;
-      font-size: 0.95rem;
+      margin: 0.3rem 0 0;
+      font-size: 0.96rem;
       color: var(--text-muted);
+      line-height: 1.5;
+    }
+
+    .failed-info strong {
+      color: var(--text);
     }
 
     .failed-info span {
@@ -103,24 +188,41 @@
       font-weight: bold;
     }
 
-    .banner-stats {
-      font-size: 0.85rem;
-      color: var(--text-muted);
-      margin-bottom: 0.8rem;
-    }
-
-    .banner-stats strong {
-      color: var(--text);
-    }
-
-    main {
-      flex: 1;
+    .banner-actions {
       display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: space-between;
-      padding: 1rem;
-      gap: 1rem;
+      justify-content: center;
+      gap: 0.8rem;
+      flex-wrap: wrap;
+      margin-top: 0.2rem;
+    }
+
+    .btn {
+      background: var(--accent);
+      color: #000;
+      border: none;
+      padding: 0.7rem 1.4rem;
+      font-weight: bold;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 0.95rem;
+      transition: transform 0.2s ease, filter 0.2s ease, box-shadow 0.2s ease;
+      box-shadow: 0 10px 18px rgba(212,175,55,0.18);
+    }
+
+    .btn:hover {
+      filter: brightness(1.1);
+      transform: translateY(-1px);
+    }
+
+    .btn.secondary {
+      background: transparent;
+      color: var(--text);
+      border: 1px solid rgba(255,255,255,0.12);
+      box-shadow: none;
+    }
+
+    .btn.secondary:hover {
+      background: rgba(255,255,255,0.03);
     }
 
     .status-panel {
@@ -159,6 +261,16 @@
 
     .status-panel.error .status-text {
       color: #ffd6d6;
+    }
+
+    main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: space-between;
+      padding: 1rem;
+      gap: 1rem;
     }
 
     .timeline-wrapper {
@@ -225,6 +337,12 @@
       flex-direction: column;
       user-select: none;
       flex-shrink: 0;
+      transition: transform 0.18s ease, box-shadow 0.18s ease;
+    }
+
+    .card:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 8px 20px rgba(0,0,0,0.45);
     }
 
     .timeline-card {
@@ -435,22 +553,6 @@
       justify-content: center;
     }
 
-    .btn {
-      background: var(--accent);
-      color: #000;
-      border: none;
-      padding: 0.6rem 1.4rem;
-      font-weight: bold;
-      border-radius: 6px;
-      cursor: pointer;
-      font-size: 0.95rem;
-      transition: filter 0.2s ease;
-    }
-
-    .btn:hover {
-      filter: brightness(1.1);
-    }
-
     @media (max-width: 600px) {
       header {
         padding: 0.8rem 1rem;
@@ -489,6 +591,10 @@
       .deck-card .card-img-container {
         height: 150px;
       }
+
+      .results-grid {
+        grid-template-columns: repeat(2, minmax(120px, 1fr));
+      }
     }
   </style>
 </head>
@@ -502,12 +608,33 @@
   </header>
 
   <div class="game-over-banner" id="game-over-banner">
-    <h2>¡Fin del juego!</h2>
-    <div class="failed-info" id="failed-artwork-info"></div>
-    <div class="banner-stats">
-      Puntuación obtenida: <strong id="final-score">0</strong> | Récord actual: <strong id="final-high-score">0</strong>
+    <div class="game-over-banner-content">
+      <div class="outcome-badge" id="outcome-badge">Resultado</div>
+      <h2 id="game-over-title">¡Fin del juego!</h2>
+      <div class="result-summary" id="result-summary">Has terminado la partida.</div>
+      <div class="results-grid">
+        <div class="result-metric">
+          <span class="metric-label">Puntuación</span>
+          <span class="metric-value" id="final-score">0</span>
+        </div>
+        <div class="result-metric">
+          <span class="metric-label">Récord</span>
+          <span class="metric-value" id="final-high-score">0</span>
+        </div>
+        <div class="result-metric">
+          <span class="metric-label">Aciertos</span>
+          <span class="metric-value" id="final-placed">0</span>
+        </div>
+        <div class="result-metric">
+          <span class="metric-label">Errores</span>
+          <span class="metric-value" id="final-mistakes">0</span>
+        </div>
+      </div>
+      <div class="failed-info" id="failed-artwork-info"></div>
+      <div class="banner-actions">
+        <button class="btn" type="button" id="restart-button">Jugar de nuevo</button>
+      </div>
     </div>
-    <button class="btn" type="button" id="restart-button">Jugar de nuevo</button>
   </div>
 
   <main>
@@ -559,7 +686,9 @@
       timelineState: [],
       currentArtwork: null,
       isGameOver: false,
-      highScore: Number(localStorage.getItem('art_timeline_record')) || 0
+      highScore: Number(localStorage.getItem('art_timeline_record')) || 0,
+      successfulPlacements: 0,
+      mistakes: 0
     };
 
     const timelineEl = document.getElementById('timeline');
@@ -578,6 +707,13 @@
     const closeLightboxButton = document.getElementById('close-lightbox');
     const statusPanel = document.getElementById('status-panel');
     const statusText = document.getElementById('status-text');
+    const outcomeBadgeEl = document.getElementById('outcome-badge');
+    const gameOverTitleEl = document.getElementById('game-over-title');
+    const resultSummaryEl = document.getElementById('result-summary');
+    const finalScoreEl = document.getElementById('final-score');
+    const finalHighScoreEl = document.getElementById('final-high-score');
+    const finalPlacedEl = document.getElementById('final-placed');
+    const finalMistakesEl = document.getElementById('final-mistakes');
 
     function safeValue(value, fallback = 'Sin dato') {
       return value ?? fallback;
@@ -801,6 +937,25 @@
       return zone;
     }
 
+    function showEndgameState(isWin) {
+      const score = Math.max(0, state.timelineState.length - 1);
+      const nextBest = Math.max(state.highScore, score);
+      const passedMessage = isWin
+        ? `¡Lo has conseguido! Has ordenado correctamente ${state.successfulPlacements} obras y superado el cronograma completo.`
+        : `Te faltó cerrar la cronología. Intenta otra partida y afina los huecos más difíciles.`;
+
+      outcomeBadgeEl.textContent = isWin ? 'Victoria' : 'Derrota';
+      gameOverTitleEl.textContent = isWin ? '¡Cronología completada!' : '¡Fin del juego!';
+      resultSummaryEl.textContent = passedMessage;
+      finalScoreEl.textContent = String(score);
+      finalHighScoreEl.textContent = String(nextBest);
+      finalPlacedEl.textContent = String(state.successfulPlacements);
+      finalMistakesEl.textContent = String(state.mistakes);
+
+      gameOverBanner.classList.toggle('win', isWin);
+      gameOverBanner.classList.add('active');
+    }
+
     function handlePlacement(insertedIndex) {
       if (state.isGameOver || !state.currentArtwork) return;
 
@@ -818,12 +973,15 @@
             ? `después de ${previous.title} (${formatYear(previous.year)})`
             : `antes que todas las obras actuales`;
 
+        state.successfulPlacements += 1;
         setStatus(`¡Correcto! ${state.currentArtwork.title} queda ${relation}.`, 'success');
 
         state.timelineState = tempTimeline;
         renderTimeline();
         loadNextArtwork();
       } else {
+        state.mistakes += 1;
+
         const before = state.timelineState[insertedIndex - 1];
         const after = state.timelineState[insertedIndex];
 
@@ -860,12 +1018,11 @@
             highScoreEl.textContent = String(state.highScore);
           }
 
-          failedArtworkInfoEl.innerHTML = '¡Lo has conseguido! Has ordenado correctamente la cronología completa.';
-          document.getElementById('final-score').textContent = finalScore;
-          document.getElementById('final-high-score').textContent = state.highScore;
-          gameOverBanner.classList.add('active');
+          showEndgameState(true);
           setStatus('¡Cronología completa! Has ganado.', 'success');
           renderTimeline(true);
+        } else {
+          showEndgameState(false);
         }
         return;
       }
@@ -893,17 +1050,16 @@
         Colocaste mal: <strong>${failedCard.title}</strong> (${failedCard.author}) — Año real: <span>${formattedYear}</span>
       `;
 
-      document.getElementById('final-score').textContent = currentScore;
-      document.getElementById('final-high-score').textContent = state.highScore;
-      gameOverBanner.classList.add('active');
-
+      showEndgameState(false);
       renderTimeline(true);
     }
 
     async function initGame() {
       state.isGameOver = false;
+      state.successfulPlacements = 0;
+      state.mistakes = 0;
       highScoreEl.textContent = String(state.highScore);
-      gameOverBanner.classList.remove('active');
+      gameOverBanner.classList.remove('active', 'win');
       deckArea.style.display = 'flex';
       setStatus('Coloca la obra en su sitio histórico.', 'info');
 
