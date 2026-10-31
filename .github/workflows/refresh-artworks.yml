@@ -1,0 +1,33 @@
+name: Refresh artwork dataset
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Fetch and validate Wikidata artworks
+        run: node scripts/refresh-artworks.js
+      - name: Run tests
+        run: npm test
+      - name: Create pull request
+        uses: peter-evans/create-pull-request@v7
+        with:
+          commit-message: Refresh artwork dataset
+          title: Refresh artwork dataset
+          body: |
+            Refresh `artworks.json` from Wikidata.
+
+            Please review the dataset changes before merging.
+          branch: automation/refresh-artworks
+          delete-branch: true
+          add-paths: artworks.json

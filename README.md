@@ -31,4 +31,40 @@ npm test
 ```
 
 The tests cover artwork normalization, year formatting, chronological
-placement checks, and the bundled dataset.
+placement checks, and required fields in every bundled dataset record. GitHub
+Actions runs them on pushes and pull requests.
+
+## Game settings
+
+The browser game settings are in
+[`game-config.json`](./game-config.json):
+
+- `updateCheckIntervalMs` controls how often the game checks for a deployed
+  update, in milliseconds. The default `300000` is five minutes.
+- `wikimediaImageWidth` controls the requested width, in pixels, for Wikimedia
+  file images. The default is `900`.
+
+Both settings must be positive integers. The game checks this config for
+deployed changes along with its other resources.
+
+## Refresh the artwork dataset
+
+To check for updated Wikidata records, open the repository's **Actions** tab,
+select **Refresh artwork dataset**, and choose **Run workflow**. The workflow
+opens a pull request with any changes to `artworks.json`; review and merge it to
+publish the update. The refresh is manual so it won't unexpectedly change the
+game's content. In repository settings, allow GitHub Actions to create pull
+requests so the workflow can open its update PR.
+
+Refresh settings live in
+[`scripts/refresh-artworks.config.json`](./scripts/refresh-artworks.config.json):
+
+- `artworkLimit` sets the maximum number of complete artworks written.
+- `candidateLimit` sets how many popular painting candidates Wikidata checks;
+  keep this at least as large as `artworkLimit`.
+- `labelLanguages` sets the preferred label languages in order (for example,
+  `["es", "en"]`).
+
+Edit the config and run the workflow again to use the new values. The workflow
+can return fewer than `artworkLimit` records if Wikidata has fewer candidates
+with all required fields.

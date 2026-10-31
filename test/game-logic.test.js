@@ -7,6 +7,7 @@ import {
   isTimelineOrdered,
   normalizeArtwork
 } from '../game-logic.js';
+import { validateGameConfig } from '../game-config.js';
 
 const baseUrl = 'https://example.test/games/art-timeline/';
 
@@ -14,6 +15,32 @@ test('formats BCE years and leaves CE years unchanged', () => {
   assert.equal(formatYear(-450), '450 a.C.');
   assert.equal(formatYear(1889), 1889);
   assert.equal(formatYear(0), 0);
+});
+
+test('validates the game config and rejects invalid settings', () => {
+  assert.deepEqual(validateGameConfig({
+    updateCheckIntervalMs: 300000,
+    wikimediaImageWidth: 900
+  }), {
+    updateCheckIntervalMs: 300000,
+    wikimediaImageWidth: 900
+  });
+  assert.throws(() => validateGameConfig({
+    updateCheckIntervalMs: 0,
+    wikimediaImageWidth: 900
+  }), /updateCheckIntervalMs/);
+  assert.throws(() => validateGameConfig({
+    updateCheckIntervalMs: 300000,
+    wikimediaImageWidth: 900,
+    imageWidth: 500
+  }), /Unknown game config option/);
+});
+
+test('the checked-in game config contains valid settings', async () => {
+  const configUrl = new URL('../game-config.json', import.meta.url);
+  const config = JSON.parse(await readFile(configUrl, 'utf8'));
+
+  assert.deepEqual(validateGameConfig(config), config);
 });
 
 test('normalizes labeled dataset fields and upgrades Wikimedia file URLs', () => {
@@ -32,6 +59,17 @@ test('normalizes labeled dataset fields and upgrades Wikimedia file URLs', () =>
     year: 1889,
     image: 'https://commons.wikimedia.org/wiki/Special:FilePath/Starry_Night.jpg?width=900'
   });
+});
+
+test('uses the configured width for Wikimedia file URLs', () => {
+  const artwork = normalizeArtwork({
+    image: 'https://commons.wikimedia.org/wiki/Special:FilePath/Artwork.jpg'
+  }, baseUrl, 1200);
+
+  assert.equal(
+    artwork.image,
+    'https://commons.wikimedia.org/wiki/Special:FilePath/Artwork.jpg?width=1200'
+  );
 });
 
 test('normalizes alternate fields, negative dates, and relative image URLs', () => {
@@ -73,22 +111,25 @@ test('completes the game after every artwork has been placed', () => {
   assert.equal(isTimelineComplete([{ year: 1485 }], 2), false);
 });
 
-test('the bundled artwork dataset contains normalizable entries', async () => {
+test('the bundled artwork dataset contains valid, normalizable entries', async () => {
   const datasetUrl = new URL('../artworks.json', import.meta.url);
   const dataset = JSON.parse(await readFile(datasetUrl, 'utf8'));
 
   assert.ok(Array.isArray(dataset));
   assert.ok(dataset.length > 0);
 
-  const usableArtworks = dataset
-    .map((item) => normalizeArtwork(item, baseUrl))
-    .filter((artwork) => artwork.year !== 0 && artwork.image !== '');
+  dataset.forEach((item, index) => {
+    assert.equal(typeof item.paintingLabel, 'string', `artwork ${index} has no title`);
+    assert.ok(item.paintingLabel.trim(), `artwork ${index} has an empty title`);
+    assert.equal(typeof item.authorLabel, 'string', `artwork ${index} has no author`);
+    assert.ok(item.authorLabel.trim(), `artwork ${index} has an empty author`);
 
-  assert.ok(usableArtworks.length > 0);
-  assert.ok(usableArtworks.every((artwork) => (
-    typeof artwork.title === 'string'
-    && typeof artwork.author === 'string'
-    && Number.isInteger(artwork.year)
-    && artwork.image.startsWith('http')
-  )));
+    const artwork = normalizeArtwork(item, baseUrl);
+    assert.notEqual(artwork.year, 0, `artwork ${index} has no valid year`);
+    assert.ok(artwork.image, `artwork ${index} has no image URL`);
+    assert.ok(
+      ['http:', 'https:'].includes(new URL(artwork.image).protocol),
+      `artwork ${index} has an invalid image URL`
+    );
+  });
 });

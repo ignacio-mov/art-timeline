@@ -4,10 +4,29 @@ import {
   isTimelineOrdered,
   normalizeArtwork
 } from './game-logic.js';
+import { validateGameConfig } from './game-config.js';
 
-const VERSION_CHECK_INTERVAL_MS = 5 * 60 * 1000;
-const VERSION_CHECK_RESOURCES = ['index.html', 'script.js', 'styles.css', 'artworks.json'];
+const VERSION_CHECK_RESOURCES = ['index.html', 'script.js', 'styles.css', 'artworks.json', 'game-config.json'];
 let deployedResourceVersions;
+let gameConfigPromise;
+let updateCheckerStarted = false;
+
+function loadGameConfig() {
+  if (!gameConfigPromise) {
+    gameConfigPromise = (async () => {
+      const response = await fetch('game-config.json');
+      if (!response.ok) {
+        throw new Error(`No se pudo cargar game-config.json: HTTP ${response.status}`);
+      }
+      return validateGameConfig(await response.json());
+    })();
+  }
+
+  return gameConfigPromise.catch((error) => {
+    gameConfigPromise = undefined;
+    throw error;
+  });
+}
 
 async function getDeployedResourceVersions() {
   const entries = await Promise.all(VERSION_CHECK_RESOURCES.map(async (resource) => {
@@ -29,7 +48,7 @@ async function getDeployedResourceVersions() {
   return Object.fromEntries(entries);
 }
 
-async function checkForDeployedUpdates() {
+async function checkForDeployedUpdates(intervalMs) {
   try {
     const latestVersions = await getDeployedResourceVersions();
 
@@ -44,11 +63,9 @@ async function checkForDeployedUpdates() {
   } catch (error) {
     console.warn('No se pudo comprobar si hay una versión nueva.', error);
   } finally {
-    window.setTimeout(checkForDeployedUpdates, VERSION_CHECK_INTERVAL_MS);
+    window.setTimeout(() => checkForDeployedUpdates(intervalMs), intervalMs);
   }
 }
-
-void checkForDeployedUpdates();
 
 const FALLBACK_ARTWORKS = [
   { title: 'El Nacimiento de Venus', author: 'Sandro Botticelli', year: 1485, image: 'https://picsum.photos/id/1028/800/800' },
@@ -121,7 +138,7 @@ function scrollTimelineToView(forceStart = false) {
   });
 }
 
-async function loadArtworkDataset() {
+async function loadArtworkDataset(wikimediaImageWidth) {
   if (state.rawArtworks.length > 0) return;
 
   try {
@@ -140,7 +157,7 @@ async function loadArtworkDataset() {
     }
 
     state.rawArtworks = itemsList
-      .map((item) => normalizeArtwork(item, window.location.href))
+      .map((item) => normalizeArtwork(item, window.location.href, wikimediaImageWidth))
       .filter((art) => art.year !== 0 && art.image !== '');
 
     if (state.rawArtworks.length === 0) {
@@ -376,7 +393,12 @@ async function initGame() {
   deckArea.style.display = 'flex';
   setStatus('Coloca la obra en su sitio histórico.', 'info');
 
-  await loadArtworkDataset();
+  const config = await loadGameConfig();
+  if (!updateCheckerStarted) {
+    updateCheckerStarted = true;
+    void checkForDeployedUpdates(config.updateCheckIntervalMs);
+  }
+  await loadArtworkDataset(config.wikimediaImageWidth);
 
   state.deck = shuffleArray(state.rawArtworks);
   state.timelineState = [state.deck.pop()];
@@ -386,7 +408,14 @@ async function initGame() {
   renderTimeline(true);
 }
 
-restartButton.addEventListener('click', initGame);
+function reportInitializationError(error) {
+  console.error('No se pudo iniciar el juego.', error);
+  setStatus('No se pudo cargar la configuración del juego.', 'error');
+}
+
+restartButton.addEventListener('click', () => {
+  void initGame().catch(reportInitializationError);
+});
 closeLightboxButton.addEventListener('click', closeLightbox);
 lightboxOverlay.addEventListener('click', (event) => {
   if (event.target === lightboxOverlay) {
@@ -399,4 +428,4 @@ document.addEventListener('keydown', (event) => {
   }
 });
 
-initGame();
+void initGame().catch(reportInitializationError);

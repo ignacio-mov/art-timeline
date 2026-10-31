@@ -2,7 +2,7 @@ export function formatYear(year) {
   return year < 0 ? `${Math.abs(year)} a.C.` : year;
 }
 
-export function normalizeArtwork(item, baseUrl) {
+export function normalizeArtwork(item, baseUrl, wikimediaImageWidth = 900) {
   const safeValue = (value, fallback = 'Sin dato') => value ?? fallback;
   const title = safeValue(
     item.title?.value || item.title || item.paintingLabel?.value || item.paintingLabel || item.name,
@@ -31,7 +31,7 @@ export function normalizeArtwork(item, baseUrl) {
     && imageUrl.pathname.startsWith('/wiki/Special:FilePath/')
   ) {
     imageUrl.protocol = 'https:';
-    imageUrl.searchParams.set('width', '900');
+    imageUrl.searchParams.set('width', String(wikimediaImageWidth));
   }
 
   return {
