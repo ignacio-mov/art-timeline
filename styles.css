@@ -157,6 +157,13 @@ h1 {
   color: var(--text);
 }
 
+.banner-actions {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+
 main {
   flex: 1;
   display: flex;
@@ -560,6 +567,12 @@ main {
 .btn:hover {
   filter: brightness(1.1);
   transform: translateY(-1px);
+}
+
+.btn-secondary {
+  background: transparent;
+  color: var(--accent);
+  border: 1px solid rgba(216,189,131,0.55);
 }
 
 :focus-visible {

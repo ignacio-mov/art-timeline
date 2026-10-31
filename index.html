@@ -35,12 +35,15 @@
     <div class="banner-stats">
       Puntuación obtenida: <strong id="final-score">0</strong> | Récord actual: <strong id="final-high-score">0</strong>
     </div>
-    <button class="btn" type="button" id="restart-button">Jugar de nuevo</button>
+    <div class="banner-actions">
+      <button class="btn btn-secondary" type="button" id="practice-button" hidden>Practicar desde aquí</button>
+      <button class="btn" type="button" id="restart-button">Jugar de nuevo</button>
+    </div>
   </div>
 
   <main>
     <aside class="how-to-play" id="how-to-play" aria-label="Cómo jugar">
-      <p>Coloca cada obra en orden cronológico. Un error termina la partida. Toca un hueco o arrastra la carta; toca una imagen para ampliarla.</p>
+      <p>Coloca cada obra en orden cronológico. Un error termina la partida, pero puedes elegir practicar y seguir. Toca un hueco o arrastra la carta; toca una imagen para ampliarla.</p>
       <button class="instructions-dismiss" type="button" id="dismiss-instructions">Entendido</button>
     </aside>
 

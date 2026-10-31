@@ -80,6 +80,7 @@ const state = {
   timelineState: [],
   currentArtwork: null,
   isGameOver: false,
+  practiceMode: false,
   skippedArtworkCount: 0,
   highScore: Number(localStorage.getItem('art_timeline_record')) || 0
 };
@@ -95,6 +96,7 @@ const highScoreEl = document.getElementById('high-score');
 const gameOverBanner = document.getElementById('game-over-banner');
 const failedArtworkInfoEl = document.getElementById('failed-artwork-info');
 const restartButton = document.getElementById('restart-button');
+const practiceButton = document.getElementById('practice-button');
 const lightboxOverlay = document.getElementById('lightbox-overlay');
 const lightboxImg = document.getElementById('lightbox-img');
 const lightboxTitle = document.getElementById('lightbox-title');
@@ -397,23 +399,48 @@ function handlePlacement(insertedIndex) {
     renderTimeline();
     loadNextArtwork();
   } else {
-    const before = state.timelineState[insertedIndex - 1];
-    const after = state.timelineState[insertedIndex];
+    const artwork = state.currentArtwork;
+    const correctPosition = getCorrectPosition(artwork, state.timelineState);
 
-    let hint = 'Está fuera de orden con la secuencia actual.';
-    if (before && state.currentArtwork.year < before.year) {
-      hint = `Está demasiado tarde. Debería ir antes de ${before.title} (${formatYear(before.year)}).`;
-    } else if (after && state.currentArtwork.year > after.year) {
-      hint = `Está demasiado pronto. Debería ir después de ${after.title} (${formatYear(after.year)}).`;
-    } else if (before && after) {
-      hint = `Debería ir entre ${before.title} (${formatYear(before.year)}) y ${after.title} (${formatYear(after.year)}).`;
+    if (state.practiceMode) {
+      state.timelineState.splice(correctPosition.index, 0, artwork);
+      const practiceMessage = `Modo práctica: ${artwork.title} debía ir ${correctPosition.description}. La hemos colocado correctamente.`;
+      renderTimeline();
+      loadNextArtwork();
+      setStatus(practiceMessage, 'success');
+    } else {
+      const before = state.timelineState[insertedIndex - 1];
+      const after = state.timelineState[insertedIndex];
+      let hint = 'Está fuera de orden con la secuencia actual.';
+      if (before && artwork.year < before.year) {
+        hint = `Está demasiado tarde. Debería ir antes de ${before.title} (${formatYear(before.year)}).`;
+      } else if (after && artwork.year > after.year) {
+        hint = `Está demasiado pronto. Debería ir después de ${after.title} (${formatYear(after.year)}).`;
+      } else if (before && after) {
+        hint = `Debería ir entre ${before.title} (${formatYear(before.year)}) y ${after.title} (${formatYear(after.year)}).`;
+      }
+
+      setStatus(`No va ahí: ${hint}`, 'error');
+      state.timelineState.splice(correctPosition.index, 0, artwork);
+      handleGameOver(artwork);
     }
-
-    setStatus(`No va ahí: ${hint}`, 'error');
-    state.timelineState.push(state.currentArtwork);
-    state.timelineState.sort((a, b) => a.year - b.year);
-    handleGameOver(state.currentArtwork);
   }
+}
+
+function getCorrectPosition(artwork, timeline) {
+  const index = timeline.findIndex((art) => art.year > artwork.year);
+  const resolvedIndex = index === -1 ? timeline.length : index;
+  const previous = timeline[resolvedIndex - 1];
+  const next = timeline[resolvedIndex];
+  const description = previous && next
+    ? `entre ${previous.title} (${formatYear(previous.year)}) y ${next.title} (${formatYear(next.year)})`
+    : previous
+      ? `después de ${previous.title} (${formatYear(previous.year)})`
+      : next
+        ? `antes de ${next.title} (${formatYear(next.year)})`
+        : 'en cualquier posición';
+
+  return { index: resolvedIndex, description };
 }
 
 function loadNextArtwork() {
@@ -428,7 +455,7 @@ function loadNextArtwork() {
 
     if (hasWon) {
       const finalScore = Math.max(0, state.timelineState.length - 1);
-      if (finalScore > state.highScore) {
+      if (!state.practiceMode && finalScore > state.highScore) {
         state.highScore = finalScore;
         localStorage.setItem('art_timeline_record', String(state.highScore));
         highScoreEl.textContent = String(state.highScore);
@@ -436,10 +463,13 @@ function loadNextArtwork() {
 
       failedArtworkInfoEl.textContent = state.skippedArtworkCount
         ? `Has ordenado ${finalScore} obras; ${state.skippedArtworkCount} se omitieron porque no cargaron sus imágenes.`
-        : '¡Lo has conseguido! Has ordenado correctamente la cronología completa.';
+        : state.practiceMode
+          ? `Has completado el mazo en modo práctica: ${finalScore} obras ordenadas.`
+          : '¡Lo has conseguido! Has ordenado correctamente la cronología completa.';
       document.getElementById('final-score').textContent = finalScore;
       document.getElementById('final-high-score').textContent = state.highScore;
       gameOverBanner.classList.add('active');
+      practiceButton.hidden = true;
       setStatus('¡Cronología completa! Has ganado.', 'success');
       renderTimeline(true);
       restartButton.focus();
@@ -450,7 +480,12 @@ function loadNextArtwork() {
   state.currentArtwork = state.deck.pop();
   renderCurrentCard();
   setScore();
-  setStatus('Siguiente obra: colócala en su posición correcta.', 'info');
+  setStatus(
+    state.practiceMode
+      ? 'Modo práctica: los errores se corrigen y la partida continúa.'
+      : 'Siguiente obra: colócala en su posición correcta.',
+    'info'
+  );
 }
 
 function handleGameOver(failedCard) {
@@ -466,29 +501,19 @@ function handleGameOver(failedCard) {
   deckArea.style.display = 'none';
 
   const formattedYear = formatYear(failedCard.year);
-  const sortedWithoutFailed = state.timelineState.filter((art) => art !== failedCard);
-  const correctIndex = sortedWithoutFailed.findIndex((art) => art.year > failedCard.year);
-  const resolvedIndex = correctIndex === -1 ? sortedWithoutFailed.length : correctIndex;
-  const previous = sortedWithoutFailed[resolvedIndex - 1];
-  const next = sortedWithoutFailed[resolvedIndex];
-  const correctPosition = previous && next
-    ? `entre ${previous.title} (${formatYear(previous.year)}) y ${next.title} (${formatYear(next.year)})`
-    : previous
-      ? `después de ${previous.title} (${formatYear(previous.year)})`
-      : next
-        ? `antes de ${next.title} (${formatYear(next.year)})`
-        : 'en cualquier posición';
+  const correctPosition = getCorrectPosition(failedCard, state.timelineState.filter((art) => art !== failedCard));
 
   failedArtworkInfoEl.replaceChildren(
     document.createTextNode('Colocaste mal: '),
     document.createElement('strong'),
-    document.createTextNode(` (${failedCard.author}) — Año real: ${formattedYear}. Debía ir ${correctPosition}.`)
+    document.createTextNode(` (${failedCard.author}) — Año real: ${formattedYear}. Debía ir ${correctPosition.description}.`)
   );
   failedArtworkInfoEl.querySelector('strong').textContent = failedCard.title;
 
   document.getElementById('final-score').textContent = currentScore;
   document.getElementById('final-high-score').textContent = state.highScore;
   gameOverBanner.classList.add('active');
+  practiceButton.hidden = false;
 
   renderTimeline(true);
   restartButton.focus();
@@ -496,8 +521,10 @@ function handleGameOver(failedCard) {
 
 async function initGame() {
   state.isGameOver = false;
+  state.practiceMode = false;
   highScoreEl.textContent = String(state.highScore);
   gameOverBanner.classList.remove('active');
+  practiceButton.hidden = true;
   deckArea.style.display = 'flex';
   setStatus('Coloca la obra en su sitio histórico.', 'info');
 
@@ -524,6 +551,17 @@ function reportInitializationError(error) {
 
 restartButton.addEventListener('click', () => {
   void initGame().catch(reportInitializationError);
+});
+practiceButton.addEventListener('click', () => {
+  state.practiceMode = true;
+  state.isGameOver = false;
+  state.currentArtwork = null;
+  gameOverBanner.classList.remove('active');
+  practiceButton.hidden = true;
+  deckArea.style.display = 'flex';
+  renderTimeline(true);
+  loadNextArtwork();
+  timelineEl.querySelector('.dropzone')?.focus();
 });
 dismissInstructionsButton.addEventListener('click', () => {
   howToPlayEl.hidden = true;
