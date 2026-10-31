@@ -1,3 +1,10 @@
+import {
+  formatYear,
+  isTimelineComplete,
+  isTimelineOrdered,
+  normalizeArtwork
+} from './game-logic.js';
+
 const VERSION_CHECK_INTERVAL_MS = 5 * 60 * 1000;
 const VERSION_CHECK_RESOURCES = ['index.html', 'script.js', 'styles.css', 'artworks.json'];
 let deployedResourceVersions;
@@ -76,14 +83,6 @@ const closeLightboxButton = document.getElementById('close-lightbox');
 const statusPanel = document.getElementById('status-panel');
 const statusText = document.getElementById('status-text');
 
-function safeValue(value, fallback = 'Sin dato') {
-  return value ?? fallback;
-}
-
-function formatYear(year) {
-  return year < 0 ? `${Math.abs(year)} a.C.` : year;
-}
-
 function setStatus(message, type = 'info') {
   statusPanel.classList.remove('info', 'success', 'error');
   statusPanel.classList.add(type);
@@ -122,45 +121,6 @@ function scrollTimelineToView(forceStart = false) {
   });
 }
 
-function normalizeArtwork(item) {
-  const title = safeValue(
-    item.title?.value || item.title || item.paintingLabel?.value || item.paintingLabel || item.name,
-    'Sin título'
-  );
-  const author = safeValue(
-    item.author?.value || item.author || item.authorLabel?.value || item.authorLabel || item.artist || item.creator,
-    'Anónimo'
-  );
-
-  let rawYear = item.year?.value || item.year || item.inception?.value || item.inception || item.date || 0;
-  let year = Number.parseInt(rawYear, 10);
-
-  if (Number.isNaN(year) && typeof rawYear === 'string') {
-    const match = rawYear.match(/-?\d{1,4}/);
-    year = match ? Number.parseInt(match[0], 10) : 0;
-  }
-
-  const rawImage = item.image?.value || item.image || item.img || item.url || '';
-  const image = typeof rawImage === 'string' ? rawImage.trim() : '';
-  const imageUrl = image ? new URL(image, window.location.href) : null;
-
-  if (
-    imageUrl
-    && imageUrl.hostname === 'commons.wikimedia.org'
-    && imageUrl.pathname.startsWith('/wiki/Special:FilePath/')
-  ) {
-    imageUrl.protocol = 'https:';
-    imageUrl.searchParams.set('width', '900');
-  }
-
-  return {
-    title,
-    author,
-    year: Number.isNaN(year) ? 0 : year,
-    image: imageUrl?.href ?? ''
-  };
-}
-
 async function loadArtworkDataset() {
   if (state.rawArtworks.length > 0) return;
 
@@ -180,7 +140,7 @@ async function loadArtworkDataset() {
     }
 
     state.rawArtworks = itemsList
-      .map(normalizeArtwork)
+      .map((item) => normalizeArtwork(item, window.location.href))
       .filter((art) => art.year !== 0 && art.image !== '');
 
     if (state.rawArtworks.length === 0) {
@@ -316,7 +276,7 @@ function handlePlacement(insertedIndex) {
   const tempTimeline = [...state.timelineState];
   tempTimeline.splice(insertedIndex, 0, state.currentArtwork);
 
-  const isCorrect = tempTimeline.every((item, index) => index === 0 || item.year >= tempTimeline[index - 1].year);
+  const isCorrect = isTimelineOrdered(tempTimeline);
 
   if (isCorrect) {
     const previous = tempTimeline[insertedIndex - 1];
@@ -359,7 +319,7 @@ function loadNextArtwork() {
     state.isGameOver = true;
     deckArea.style.display = 'none';
     setScore();
-    const hasWon = state.timelineState.length === state.rawArtworks.length + 1;
+    const hasWon = isTimelineComplete(state.timelineState, state.rawArtworks.length);
 
     if (hasWon) {
       const finalScore = Math.max(0, state.timelineState.length - 1);

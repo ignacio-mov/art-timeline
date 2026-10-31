@@ -1,0 +1,8 @@
+{
+  "name": "art-timeline",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test"
+  }
+}
