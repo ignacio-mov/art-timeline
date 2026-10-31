@@ -140,11 +140,13 @@ function normalizeArtwork(item) {
     year = match ? Number.parseInt(match[0], 10) : 0;
   }
 
-  const image = safeValue(item.image?.value || item.image || item.img || item.url, '', '');
-  const imageUrl = new URL(image, window.location.href);
+  const rawImage = item.image?.value || item.image || item.img || item.url || '';
+  const image = typeof rawImage === 'string' ? rawImage.trim() : '';
+  const imageUrl = image ? new URL(image, window.location.href) : null;
 
   if (
-    imageUrl.hostname === 'commons.wikimedia.org'
+    imageUrl
+    && imageUrl.hostname === 'commons.wikimedia.org'
     && imageUrl.pathname.startsWith('/wiki/Special:FilePath/')
   ) {
     imageUrl.protocol = 'https:';
@@ -155,7 +157,7 @@ function normalizeArtwork(item) {
     title,
     author,
     year: Number.isNaN(year) ? 0 : year,
-    image: imageUrl.href
+    image: imageUrl?.href ?? ''
   };
 }
 
