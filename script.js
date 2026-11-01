@@ -137,6 +137,7 @@ const gameOverBanner = document.getElementById('game-over-banner');
 const failedArtworkInfoEl = document.getElementById('failed-artwork-info');
 const restartButton = document.getElementById('restart-button');
 const practiceButton = document.getElementById('practice-button');
+const endPracticeButton = document.getElementById('end-practice-button');
 const lightboxOverlay = document.getElementById('lightbox-overlay');
 const lightboxImg = document.getElementById('lightbox-img');
 const lightboxTitle = document.getElementById('lightbox-title');
@@ -585,6 +586,7 @@ function loadNextArtwork() {
     currentCardContainer.innerHTML = '';
     state.isGameOver = true;
     deckArea.style.display = 'none';
+    endPracticeButton.hidden = true;
     setScore();
     const hasWon = isTimelineComplete(state.timelineState, state.rawArtworks.length)
       || state.timelineState.length + state.skippedArtworkCount === state.rawArtworks.length;
@@ -633,6 +635,7 @@ function handleGameOver(failedCard) {
   }
 
   deckArea.style.display = 'none';
+  endPracticeButton.hidden = true;
 
   document.getElementById('final-score').textContent = currentScore;
   document.getElementById('final-high-score').textContent = state.highScore;
@@ -667,7 +670,7 @@ function renderGameOverMessage() {
   failedArtworkInfoEl.textContent = state.skippedArtworkCount
     ? translate('skippedSummary', { score, skipped: state.skippedArtworkCount })
     : state.practiceMode
-      ? translate('practiceSummary', { score })
+      ? translate(state.completedGame ? 'practiceSummary' : 'practiceEndedSummary', { score })
       : translate('winSummary');
 }
 
@@ -677,6 +680,7 @@ async function initGame() {
   highScoreEl.textContent = String(state.highScore);
   gameOverBanner.classList.remove('active');
   practiceButton.hidden = true;
+  endPracticeButton.hidden = true;
   deckArea.style.display = 'flex';
   state.completedGame = false;
   state.failedArtwork = null;
@@ -720,10 +724,31 @@ practiceButton.addEventListener('click', () => {
   state.currentArtwork = null;
   gameOverBanner.classList.remove('active');
   practiceButton.hidden = true;
+  endPracticeButton.hidden = false;
   deckArea.style.display = 'flex';
   renderTimeline(true);
   loadNextArtwork();
   timelineEl.querySelector('.dropzone')?.focus();
+});
+endPracticeButton.addEventListener('click', () => {
+  if (!state.practiceMode || state.isGameOver) return;
+
+  state.currentArtwork = null;
+  state.deck = [];
+  currentCardContainer.innerHTML = '';
+  state.isGameOver = true;
+  deckArea.style.display = 'none';
+  endPracticeButton.hidden = true;
+  practiceButton.hidden = true;
+
+  const finalScore = Math.max(0, state.timelineState.length - 1);
+  document.getElementById('final-score').textContent = finalScore;
+  document.getElementById('final-high-score').textContent = state.highScore;
+  gameOverBanner.classList.add('active');
+  renderGameOverMessage();
+  setStatus('practiceEndedStatus', 'info');
+  renderTimeline(true);
+  restartButton.focus();
 });
 languageSelect.addEventListener('change', () => {
   state.language = languageSelect.value;
