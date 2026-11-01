@@ -1,15 +1,49 @@
-export function formatYear(year) {
-  return year < 0 ? `${Math.abs(year)} a.C.` : year;
+export function formatYear(year, language = 'es') {
+  if (year >= 0) return year;
+  return language === 'en' ? `${Math.abs(year)} BCE` : `${Math.abs(year)} a.C.`;
 }
 
-export function normalizeArtwork(item, baseUrl, wikimediaImageWidth = 900) {
+export function getArtworkTitle(artwork, language = 'es') {
+  return artwork.labels?.[language]?.title
+    || Object.values(artwork.labels ?? {}).find((labels) => labels.title)?.title
+    || artwork.title;
+}
+
+export function getArtworkAuthor(artwork, language = 'es') {
+  return artwork.labels?.[language]?.author
+    || Object.values(artwork.labels ?? {}).find((labels) => labels.author)?.author
+    || artwork.author;
+}
+
+export function normalizeArtwork(item, baseUrl, wikimediaImageWidth = 900, language = 'es') {
   const safeValue = (value, fallback = 'Sin dato') => value ?? fallback;
+  const localizedLabels = item.labels && typeof item.labels === 'object' && !Array.isArray(item.labels)
+    ? Object.fromEntries(Object.entries(item.labels).map(([code, labels]) => [
+      code,
+      {
+        title: typeof labels?.title === 'string' ? labels.title : '',
+        author: typeof labels?.author === 'string' ? labels.author : ''
+      }
+    ]))
+    : {};
+  const selectedLabels = localizedLabels[language];
   const title = safeValue(
-    item.title?.value || item.title || item.paintingLabel?.value || item.paintingLabel || item.name,
+    selectedLabels?.title
+      || item.title?.value
+      || item.title
+      || item.paintingLabel?.value
+      || item.paintingLabel
+      || item.name,
     'Sin título'
   );
   const author = safeValue(
-    item.author?.value || item.author || item.authorLabel?.value || item.authorLabel || item.artist || item.creator,
+    selectedLabels?.author
+      || item.author?.value
+      || item.author
+      || item.authorLabel?.value
+      || item.authorLabel
+      || item.artist
+      || item.creator,
     'Anónimo'
   );
 
@@ -37,6 +71,7 @@ export function normalizeArtwork(item, baseUrl, wikimediaImageWidth = 900) {
   return {
     title,
     author,
+    ...(Object.keys(localizedLabels).length > 0 ? { labels: localizedLabels } : {}),
     year: Number.isNaN(year) ? 0 : year,
     image: imageUrl?.href ?? ''
   };

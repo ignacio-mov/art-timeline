@@ -15,7 +15,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Fetch and validate Wikidata artworks
+      - name: Fetch artwork metadata and localized labels from Wikidata
         run: node scripts/refresh-artworks.js
       - name: Run tests
         run: npm test
@@ -25,9 +25,11 @@ jobs:
           commit-message: Refresh artwork dataset
           title: Refresh artwork dataset
           body: |
-            Refresh `artworks.json` from Wikidata.
+            Refresh `artworks.json` from Wikidata, including labels for each
+            configured language.
 
             Please review the dataset changes before merging.
           branch: automation/refresh-artworks
           delete-branch: true
-          add-paths: artworks.json
+          add-paths: |
+            artworks.json

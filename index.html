@@ -3,9 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="Pon a prueba tu conocimiento del arte ordenando obras maestras a través del tiempo.">
+  <meta name="description" content="" data-i18n-content="description">
   <meta name="theme-color" content="#101114">
-  <title>Art Timeline | Juego de historia del arte</title>
+  <title data-i18n="pageTitle"></title>
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -13,59 +13,68 @@
     <div class="brand">
       <div class="brand-mark" aria-hidden="true">AT</div>
       <div class="brand-copy">
-        <p class="eyebrow">Cronología del arte</p>
+        <p class="eyebrow" data-i18n="eyebrow"></p>
         <h1>Art Timeline</h1>
       </div>
     </div>
-    <div class="stats" aria-label="Estadísticas de la partida">
-      <div class="stat">
-        <span class="stat-label">Avance</span>
-        <span class="stat-value" id="score">0</span>
-      </div>
-      <div class="stat">
-        <span class="stat-label">Récord</span>
-        <span class="stat-value" id="high-score">0</span>
+    <div class="header-tools">
+      <label class="language-control">
+        <span data-i18n="language"></span>
+        <select id="language-select" data-i18n-aria-label="language">
+          <option value="es">Español</option>
+          <option value="en">English</option>
+        </select>
+      </label>
+      <div class="stats" data-i18n-aria-label="statsLabel">
+        <div class="stat">
+          <span class="stat-label" data-i18n="scoreLabel"></span>
+          <span class="stat-value" id="score">0</span>
+        </div>
+        <div class="stat">
+          <span class="stat-label" data-i18n="recordLabel"></span>
+          <span class="stat-value" id="high-score">0</span>
+        </div>
       </div>
     </div>
   </header>
 
   <div class="game-over-banner" id="game-over-banner">
-    <h2>¡Fin del juego!</h2>
+    <h2 data-i18n="gameOverTitle"></h2>
     <div class="failed-info" id="failed-artwork-info"></div>
     <div class="banner-stats">
-      Puntuación obtenida: <strong id="final-score">0</strong> | Récord actual: <strong id="final-high-score">0</strong>
+      <span data-i18n="finalScoreLabel"></span> <strong id="final-score">0</strong> | <span data-i18n="finalRecordLabel"></span> <strong id="final-high-score">0</strong>
     </div>
     <div class="banner-actions">
-      <button class="btn btn-secondary" type="button" id="practice-button" hidden>Practicar desde aquí</button>
-      <button class="btn" type="button" id="restart-button">Jugar de nuevo</button>
+      <button class="btn btn-secondary" type="button" id="practice-button" hidden data-i18n="practiceButton"></button>
+      <button class="btn" type="button" id="restart-button" data-i18n="restartButton"></button>
     </div>
   </div>
 
   <main>
-    <aside class="how-to-play" id="how-to-play" aria-label="Cómo jugar">
-      <p>Coloca cada obra en orden cronológico. Un error termina la partida, pero puedes elegir practicar y seguir. Toca un hueco o arrastra la carta; toca una imagen para ampliarla.</p>
-      <button class="instructions-dismiss" type="button" id="dismiss-instructions">Entendido</button>
+    <aside class="how-to-play" id="how-to-play" data-i18n-aria-label="instructionsLabel">
+      <p data-i18n="instructions"></p>
+      <button class="instructions-dismiss" type="button" id="dismiss-instructions" data-i18n="dismissInstructions"></button>
     </aside>
 
     <div class="status-panel info" id="status-panel" aria-live="polite" aria-atomic="true">
-      <div class="status-text" id="status-text">Coloca la obra en su sitio histórico.</div>
+      <div class="status-text" id="status-text" data-i18n="initialStatus"></div>
     </div>
 
-    <div class="timeline-wrapper" id="timeline-wrapper" role="region" aria-label="Línea del tiempo; desplázate horizontalmente para ver todas las obras" tabindex="0">
+    <div class="timeline-wrapper" id="timeline-wrapper" role="region" data-i18n-aria-label="timelineLabel" tabindex="0">
       <div class="timeline" id="timeline"></div>
     </div>
-    <p class="timeline-hint">Desliza o desplázate horizontalmente para recorrer la línea del tiempo.</p>
+    <p class="timeline-hint" data-i18n="timelineHint"></p>
 
     <div class="deck-area" id="deck-area">
-      <h2>¿Dónde va esta obra?</h2>
-      <p class="deck-hint">Haz clic en cualquier imagen para verla más grande.</p>
+      <h2 data-i18n="deckTitle"></h2>
+      <p class="deck-hint" data-i18n="deckHint"></p>
       <div id="current-card-container"></div>
     </div>
   </main>
 
   <div class="lightbox-overlay" id="lightbox-overlay" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="lightbox-title">
     <div class="lightbox-content" tabindex="-1">
-      <button class="lightbox-close" type="button" aria-label="Cerrar vista ampliada" id="close-lightbox">&times;</button>
+      <button class="lightbox-close" type="button" data-i18n-aria-label="closeLightbox" id="close-lightbox">&times;</button>
       <img id="lightbox-img" src="" alt="">
       <div class="lightbox-caption">
         <h3 id="lightbox-title"></h3>

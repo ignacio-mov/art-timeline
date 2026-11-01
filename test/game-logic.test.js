@@ -3,17 +3,27 @@ import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 import {
   formatYear,
+  getArtworkAuthor,
+  getArtworkTitle,
   isTimelineComplete,
   isTimelineOrdered,
   normalizeArtwork
 } from '../game-logic.js';
 import { validateGameConfig } from '../game-config.js';
+import {
+  addArtworkLanguage,
+  buildArtworkQuery,
+  toArtwork,
+  validateConfig as validateRefreshConfig
+} from '../scripts/refresh-artworks.js';
 
 const baseUrl = 'https://example.test/games/art-timeline/';
 
 test('formats BCE years and leaves CE years unchanged', () => {
   assert.equal(formatYear(-450), '450 a.C.');
+  assert.equal(formatYear(-450, 'en'), '450 BCE');
   assert.equal(formatYear(1889), 1889);
+  assert.equal(formatYear(1889, 'en'), 1889);
   assert.equal(formatYear(0), 0);
 });
 
@@ -95,6 +105,56 @@ test('uses fallback labels and a zero year for missing or invalid values', () =>
     year: 0,
     image: ''
   });
+});
+
+test('normalizes and selects artwork labels in the requested language', () => {
+  const artwork = normalizeArtwork({
+    paintingLabel: 'La noche estrellada',
+    authorLabel: 'Vincent van Gogh',
+    labels: {
+      es: { title: 'La noche estrellada', author: 'Vincent van Gogh' },
+      en: { title: 'The Starry Night', author: 'Vincent van Gogh' }
+    },
+    year: '1889'
+  }, baseUrl, 900, 'en');
+
+  assert.equal(artwork.title, 'The Starry Night');
+  assert.equal(getArtworkTitle(artwork, 'en'), 'The Starry Night');
+  assert.equal(getArtworkTitle(artwork, 'fr'), 'La noche estrellada');
+  assert.equal(getArtworkAuthor(artwork, 'en'), 'Vincent van Gogh');
+});
+
+test('refresh config fetches individual languages and stores their labels together', () => {
+  const config = validateRefreshConfig({
+    candidateLimit: 10,
+    artworkLimit: 5,
+    labelLanguages: ['es', 'en']
+  });
+  const spanishBinding = {
+    painting: { value: 'http://www.wikidata.org/entity/Q1' },
+    author: { value: 'http://www.wikidata.org/entity/Q2' },
+    paintingLabel: { value: 'Obra' },
+    authorLabel: { value: 'Artista' },
+    year: { value: '1900' },
+    image: { value: 'https://example.test/image.jpg' },
+    sitelinks: { value: '25' }
+  };
+  const artwork = toArtwork(spanishBinding, 0, config.labelLanguages[0]);
+
+  assert.match(buildArtworkQuery([{ id: 'Q1', sitelinks: '25' }], config, 'en'), /wikibase:language "en"/);
+  assert.match(
+    buildArtworkQuery([{ id: 'Q1', creator: 'Q2', sitelinks: '25' }], config, 'en'),
+    /VALUES \(\?painting \?author \?sitelinks\)/
+  );
+  assert.deepEqual(artwork.labels.es, { title: 'Obra', author: 'Artista' });
+  addArtworkLanguage([artwork], [{
+    ...spanishBinding,
+    paintingLabel: { value: 'Artwork' },
+    authorLabel: { value: 'Artist' }
+  }], 'en');
+  assert.deepEqual(artwork.labels.en, { title: 'Artwork', author: 'Artist' });
+  assert.equal(artwork.paintingLabel, 'Obra');
+  assert.equal(artwork.authorLabel, 'Artista');
 });
 
 test('accepts chronological timelines, including works with equal years', () => {

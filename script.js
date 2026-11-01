@@ -1,15 +1,47 @@
 import {
   formatYear,
+  getArtworkAuthor,
+  getArtworkTitle,
   isTimelineComplete,
   isTimelineOrdered,
   normalizeArtwork
 } from './game-logic.js';
 import { validateGameConfig } from './game-config.js';
 
-const VERSION_CHECK_RESOURCES = ['index.html', 'script.js', 'styles.css', 'artworks.json', 'game-config.json'];
+const VERSION_CHECK_RESOURCES = [
+  'index.html',
+  'script.js',
+  'game-logic.js',
+  'styles.css',
+  'artworks.json',
+  'game-config.json',
+  'locales/es.json',
+  'locales/en.json'
+];
+let translations = {};
 let deployedResourceVersions;
 let gameConfigPromise;
 let updateCheckerStarted = false;
+
+async function loadTranslations() {
+  const entries = await Promise.all(['es', 'en'].map(async (language) => {
+    const resource = `locales/${language}.json`;
+    const response = await fetch(resource);
+    if (!response.ok) {
+      throw new Error(`No se pudo cargar ${resource}: HTTP ${response.status}`);
+    }
+
+    const catalog = await response.json();
+    if (!catalog || typeof catalog !== 'object' || Array.isArray(catalog)
+      || Object.values(catalog).some((message) => typeof message !== 'string')) {
+      throw new Error(`El catálogo ${resource} no es válido`);
+    }
+
+    return [language, catalog];
+  }));
+
+  return Object.fromEntries(entries);
+}
 
 function loadGameConfig() {
   if (!gameConfigPromise) {
@@ -75,12 +107,20 @@ const FALLBACK_ARTWORKS = [
 ];
 
 const state = {
+  language: ['es', 'en'].includes(localStorage.getItem('art_timeline_language'))
+    ? localStorage.getItem('art_timeline_language')
+    : 'es',
   rawArtworks: [],
   deck: [],
   timelineState: [],
   currentArtwork: null,
   isGameOver: false,
   practiceMode: false,
+  completedGame: false,
+  failedArtwork: null,
+  statusKey: 'initialStatus',
+  statusParams: {},
+  statusType: 'info',
   skippedArtworkCount: 0,
   highScore: Number(localStorage.getItem('art_timeline_record')) || 0
 };
@@ -104,35 +144,82 @@ const lightboxDetails = document.getElementById('lightbox-details');
 const closeLightboxButton = document.getElementById('close-lightbox');
 const statusPanel = document.getElementById('status-panel');
 const statusText = document.getElementById('status-text');
+const languageSelect = document.getElementById('language-select');
 let lightboxReturnFocus;
+let lightboxArtwork;
+let lightboxIsHidden = false;
+
+function translate(key, params = {}) {
+  const message = translations[state.language]?.[key] ?? translations.es?.[key] ?? key;
+  return message.replace(/\{(\w+)\}/g, (match, name) => String(params[name] ?? match));
+}
+
+function artworkTitle(artwork) {
+  return getArtworkTitle(artwork, state.language);
+}
+
+function artworkAuthor(artwork) {
+  return getArtworkAuthor(artwork, state.language);
+}
+
+function applyTranslations() {
+  document.documentElement.lang = state.language;
+  document.title = translate('pageTitle');
+  document.querySelectorAll('[data-i18n]').forEach((element) => {
+    element.textContent = translate(element.dataset.i18n);
+  });
+  document.querySelectorAll('[data-i18n-aria-label]').forEach((element) => {
+    element.setAttribute('aria-label', translate(element.dataset.i18nAriaLabel));
+  });
+  document.querySelectorAll('[data-i18n-content]').forEach((element) => {
+    element.setAttribute('content', translate(element.dataset.i18nContent));
+  });
+  languageSelect.value = state.language;
+}
 
 if (sessionStorage.getItem('art_timeline_instructions_dismissed') === 'true') {
   howToPlayEl.hidden = true;
 }
+const translationsPromise = loadTranslations().then((catalog) => {
+  translations = catalog;
+  applyTranslations();
+  return catalog;
+});
 
-function setStatus(message, type = 'info') {
+function setStatus(message, type = 'info', params = {}) {
+  state.statusKey = message;
+  state.statusParams = params;
+  state.statusType = type;
   statusPanel.classList.remove('info', 'success', 'error');
   statusPanel.classList.add(type);
-  statusText.textContent = message;
+  statusText.textContent = translate(message, params);
 }
 
 function openLightbox(art, isHidden = false) {
   lightboxReturnFocus = document.activeElement;
-  lightboxImg.src = art.image;
-  lightboxImg.alt = isHidden ? 'Obra a colocar' : art.title;
-
-  if (isHidden) {
-    lightboxTitle.textContent = 'Obra a colocar';
-    lightboxDetails.textContent = 'Inserta la obra en el tiempo para descubrir sus datos reales';
-  } else {
-    lightboxTitle.textContent = art.title;
-    lightboxDetails.textContent = `${art.author} — Año: ${formatYear(art.year)}`;
-  }
-
+  lightboxArtwork = art;
+  lightboxIsHidden = isHidden;
+  renderLightboxLanguage();
   lightboxOverlay.classList.add('active');
   lightboxOverlay.setAttribute('aria-hidden', 'false');
   document.body.style.overflow = 'hidden';
   closeLightboxButton.focus();
+}
+
+function renderLightboxLanguage() {
+  const art = lightboxArtwork;
+  if (!art) return;
+
+  lightboxImg.src = art.image;
+  lightboxImg.alt = lightboxIsHidden ? translate('hiddenArtwork') : artworkTitle(art);
+
+  if (lightboxIsHidden) {
+    lightboxTitle.textContent = translate('hiddenArtwork');
+    lightboxDetails.textContent = translate('hiddenArtworkDetails');
+  } else {
+    lightboxTitle.textContent = artworkTitle(art);
+    lightboxDetails.textContent = `${artworkAuthor(art)} — ${translate('yearLabel', { year: formatYear(art.year, state.language) })}`;
+  }
 }
 
 function closeLightbox() {
@@ -174,7 +261,7 @@ async function loadArtworkDataset(wikimediaImageWidth) {
     }
 
     state.rawArtworks = itemsList
-      .map((item) => normalizeArtwork(item, window.location.href, wikimediaImageWidth))
+      .map((item) => normalizeArtwork(item, window.location.href, wikimediaImageWidth, state.language))
       .filter((art) => art.year !== 0 && art.image !== '');
 
     if (state.rawArtworks.length === 0) {
@@ -248,24 +335,24 @@ function skipCurrentArtwork(art) {
   loadNextArtwork();
 
   if (!state.isGameOver) {
-    setStatus(`No se pudo cargar la imagen de «${art.title}». Obra omitida; continúa la partida.`, 'info');
+    setStatus('skippedArtwork', 'info', { title: artworkTitle(art), artwork: art });
   }
 }
 
 function createCardElement(art, isHidden = false) {
   const card = document.createElement('div');
   card.className = isHidden ? 'card deck-card' : 'card timeline-card';
-  const title = isHidden ? 'Obra a colocar' : art.title;
-  const author = isHidden ? 'Inserta en el tiempo' : art.author;
+  const title = isHidden ? translate('hiddenArtwork') : artworkTitle(art);
+  const author = isHidden ? translate('placeHiddenArtwork') : artworkAuthor(art);
   const imgContainer = document.createElement('div');
   imgContainer.className = 'card-img-container';
-  imgContainer.title = 'Haz clic para ampliar';
+  imgContainer.title = translate('enlarge');
   imgContainer.tabIndex = 0;
   imgContainer.setAttribute('role', 'button');
   imgContainer.setAttribute('aria-haspopup', 'dialog');
   imgContainer.setAttribute('aria-label', isHidden
-    ? 'Ampliar imagen de la obra a colocar'
-    : `Ampliar imagen de ${art.title}`);
+    ? translate('enlargeHiddenArtwork')
+    : translate('enlargeArtwork', { title: artworkTitle(art) }));
 
   const image = document.createElement('img');
   image.alt = title;
@@ -274,9 +361,9 @@ function createCardElement(art, isHidden = false) {
     imgContainer.classList.add('image-unavailable');
     const fallback = document.createElement('span');
     fallback.className = 'image-fallback';
-    fallback.textContent = 'Imagen no disponible';
+    fallback.textContent = translate('unavailableImage');
     fallback.setAttribute('role', 'img');
-    fallback.setAttribute('aria-label', `Imagen no disponible de ${art.title}`);
+    fallback.setAttribute('aria-label', translate('unavailableImageOf', { title: artworkTitle(art) }));
     imgContainer.replaceChildren(fallback);
 
     if (isHidden && state.currentArtwork === art) {
@@ -305,7 +392,7 @@ function createCardElement(art, isHidden = false) {
   authorEl.textContent = author;
   const yearEl = document.createElement('div');
   yearEl.className = 'card-year';
-  yearEl.textContent = isHidden ? '????' : String(formatYear(art.year));
+  yearEl.textContent = isHidden ? '????' : String(formatYear(art.year, state.language));
   info.append(titleEl, authorEl, yearEl);
   card.append(imgContainer, info);
 
@@ -337,16 +424,30 @@ function createDropzone(index) {
   const next = state.timelineState[index];
   const visibleLabel = document.createElement('span');
   const accessibleLabel = previous && next
-    ? `Entre ${previous.title} (${formatYear(previous.year)}) y ${next.title} (${formatYear(next.year)})`
+    ? translate('between', {
+      first: artworkTitle(previous),
+      firstYear: formatYear(previous.year, state.language),
+      second: artworkTitle(next),
+      secondYear: formatYear(next.year, state.language)
+    })
     : previous
-      ? `Después de ${previous.title} (${formatYear(previous.year)})`
-      : `Antes de ${next.title} (${formatYear(next.year)})`;
+      ? translate('after', {
+        title: artworkTitle(previous),
+        year: formatYear(previous.year, state.language)
+      })
+      : translate('before', {
+        title: artworkTitle(next),
+        year: formatYear(next.year, state.language)
+      });
   visibleLabel.textContent = previous && next
-    ? `${formatYear(previous.year)}–${formatYear(next.year)}`
+    ? translate('betweenYears', {
+      first: formatYear(previous.year, state.language),
+      second: formatYear(next.year, state.language)
+    })
     : previous
-      ? `Después de ${formatYear(previous.year)}`
-      : `Antes de ${formatYear(next.year)}`;
-  zone.setAttribute('aria-label', `Insertar obra ${accessibleLabel}`);
+      ? translate('afterYear', { year: formatYear(previous.year, state.language) })
+      : translate('beforeYear', { year: formatYear(next.year, state.language) });
+  zone.setAttribute('aria-label', translate('insert', { position: accessibleLabel }));
   zone.appendChild(visibleLabel);
 
   const handleDrop = (event) => {
@@ -388,12 +489,23 @@ function handlePlacement(insertedIndex) {
     const previous = tempTimeline[insertedIndex - 1];
     const next = tempTimeline[insertedIndex + 1];
     const relation = previous && next
-      ? `entre ${previous.title} (${formatYear(previous.year)}) y ${next.title} (${formatYear(next.year)})`
+      ? translate('between', {
+        first: artworkTitle(previous),
+        firstYear: formatYear(previous.year, state.language),
+        second: artworkTitle(next),
+        secondYear: formatYear(next.year, state.language)
+      })
       : previous
-        ? `después de ${previous.title} (${formatYear(previous.year)})`
-        : `antes que todas las obras actuales`;
+        ? translate('after', {
+          title: artworkTitle(previous),
+          year: formatYear(previous.year, state.language)
+        })
+        : translate('beforeAll');
 
-    setStatus(`¡Correcto! ${state.currentArtwork.title} queda ${relation}.`, 'success');
+    setStatus('correct', 'success', {
+      title: artworkTitle(state.currentArtwork),
+      position: relation
+    });
 
     state.timelineState = tempTimeline;
     renderTimeline();
@@ -404,23 +516,36 @@ function handlePlacement(insertedIndex) {
 
     if (state.practiceMode) {
       state.timelineState.splice(correctPosition.index, 0, artwork);
-      const practiceMessage = `Modo práctica: ${artwork.title} debía ir ${correctPosition.description}. La hemos colocado correctamente.`;
       renderTimeline();
       loadNextArtwork();
-      setStatus(practiceMessage, 'success');
+      setStatus('practiceCorrection', 'success', {
+        title: artworkTitle(artwork),
+        position: correctPosition.description
+      });
     } else {
       const before = state.timelineState[insertedIndex - 1];
       const after = state.timelineState[insertedIndex];
-      let hint = 'Está fuera de orden con la secuencia actual.';
+      let hint = translate('outOfOrder');
       if (before && artwork.year < before.year) {
-        hint = `Está demasiado tarde. Debería ir antes de ${before.title} (${formatYear(before.year)}).`;
+        hint = translate('tooLate', {
+          title: artworkTitle(before),
+          year: formatYear(before.year, state.language)
+        });
       } else if (after && artwork.year > after.year) {
-        hint = `Está demasiado pronto. Debería ir después de ${after.title} (${formatYear(after.year)}).`;
+        hint = translate('tooEarly', {
+          title: artworkTitle(after),
+          year: formatYear(after.year, state.language)
+        });
       } else if (before && after) {
-        hint = `Debería ir entre ${before.title} (${formatYear(before.year)}) y ${after.title} (${formatYear(after.year)}).`;
+        hint = translate('shouldBeBetween', {
+          first: artworkTitle(before),
+          firstYear: formatYear(before.year, state.language),
+          second: artworkTitle(after),
+          secondYear: formatYear(after.year, state.language)
+        });
       }
 
-      setStatus(`No va ahí: ${hint}`, 'error');
+      setStatus('wrongPlacement', 'error', { hint });
       state.timelineState.splice(correctPosition.index, 0, artwork);
       handleGameOver(artwork);
     }
@@ -433,12 +558,23 @@ function getCorrectPosition(artwork, timeline) {
   const previous = timeline[resolvedIndex - 1];
   const next = timeline[resolvedIndex];
   const description = previous && next
-    ? `entre ${previous.title} (${formatYear(previous.year)}) y ${next.title} (${formatYear(next.year)})`
+    ? translate('between', {
+      first: artworkTitle(previous),
+      firstYear: formatYear(previous.year, state.language),
+      second: artworkTitle(next),
+      secondYear: formatYear(next.year, state.language)
+    })
     : previous
-      ? `después de ${previous.title} (${formatYear(previous.year)})`
+      ? translate('after', {
+        title: artworkTitle(previous),
+        year: formatYear(previous.year, state.language)
+      })
       : next
-        ? `antes de ${next.title} (${formatYear(next.year)})`
-        : 'en cualquier posición';
+        ? translate('before', {
+          title: artworkTitle(next),
+          year: formatYear(next.year, state.language)
+        })
+        : translate('anyPosition');
 
   return { index: resolvedIndex, description };
 }
@@ -455,22 +591,19 @@ function loadNextArtwork() {
 
     if (hasWon) {
       const finalScore = Math.max(0, state.timelineState.length - 1);
+      state.completedGame = true;
       if (!state.practiceMode && finalScore > state.highScore) {
         state.highScore = finalScore;
         localStorage.setItem('art_timeline_record', String(state.highScore));
         highScoreEl.textContent = String(state.highScore);
       }
 
-      failedArtworkInfoEl.textContent = state.skippedArtworkCount
-        ? `Has ordenado ${finalScore} obras; ${state.skippedArtworkCount} se omitieron porque no cargaron sus imágenes.`
-        : state.practiceMode
-          ? `Has completado el mazo en modo práctica: ${finalScore} obras ordenadas.`
-          : '¡Lo has conseguido! Has ordenado correctamente la cronología completa.';
       document.getElementById('final-score').textContent = finalScore;
       document.getElementById('final-high-score').textContent = state.highScore;
       gameOverBanner.classList.add('active');
       practiceButton.hidden = true;
-      setStatus('¡Cronología completa! Has ganado.', 'success');
+      renderGameOverMessage();
+      setStatus('winStatus', 'success');
       renderTimeline(true);
       restartButton.focus();
     }
@@ -482,14 +615,15 @@ function loadNextArtwork() {
   setScore();
   setStatus(
     state.practiceMode
-      ? 'Modo práctica: los errores se corrigen y la partida continúa.'
-      : 'Siguiente obra: colócala en su posición correcta.',
+      ? 'practiceStatus'
+      : 'nextArtworkStatus',
     'info'
   );
 }
 
 function handleGameOver(failedCard) {
   state.isGameOver = true;
+  state.failedArtwork = failedCard;
   const currentScore = Math.max(0, state.timelineState.length - 2);
 
   if (currentScore > state.highScore) {
@@ -500,23 +634,41 @@ function handleGameOver(failedCard) {
 
   deckArea.style.display = 'none';
 
-  const formattedYear = formatYear(failedCard.year);
-  const correctPosition = getCorrectPosition(failedCard, state.timelineState.filter((art) => art !== failedCard));
-
-  failedArtworkInfoEl.replaceChildren(
-    document.createTextNode('Colocaste mal: '),
-    document.createElement('strong'),
-    document.createTextNode(` (${failedCard.author}) — Año real: ${formattedYear}. Debía ir ${correctPosition.description}.`)
-  );
-  failedArtworkInfoEl.querySelector('strong').textContent = failedCard.title;
-
   document.getElementById('final-score').textContent = currentScore;
   document.getElementById('final-high-score').textContent = state.highScore;
   gameOverBanner.classList.add('active');
   practiceButton.hidden = false;
+  renderGameOverMessage();
 
   renderTimeline(true);
   restartButton.focus();
+}
+
+function renderGameOverMessage() {
+  if (state.failedArtwork) {
+    const artwork = state.failedArtwork;
+    const correctPosition = getCorrectPosition(
+      artwork,
+      state.timelineState.filter((art) => art !== artwork)
+    );
+    const prefix = document.createTextNode(translate('failedArtwork'));
+    const title = document.createElement('strong');
+    title.textContent = artworkTitle(artwork);
+    const details = document.createTextNode(translate('failedArtworkDetails', {
+      author: artworkAuthor(artwork),
+      year: formatYear(artwork.year, state.language),
+      position: correctPosition.description
+    }));
+    failedArtworkInfoEl.replaceChildren(prefix, title, details);
+    return;
+  }
+
+  const score = Math.max(0, state.timelineState.length - 1);
+  failedArtworkInfoEl.textContent = state.skippedArtworkCount
+    ? translate('skippedSummary', { score, skipped: state.skippedArtworkCount })
+    : state.practiceMode
+      ? translate('practiceSummary', { score })
+      : translate('winSummary');
 }
 
 async function initGame() {
@@ -526,7 +678,9 @@ async function initGame() {
   gameOverBanner.classList.remove('active');
   practiceButton.hidden = true;
   deckArea.style.display = 'flex';
-  setStatus('Coloca la obra en su sitio histórico.', 'info');
+  state.completedGame = false;
+  state.failedArtwork = null;
+  setStatus('initialGameStatus', 'info');
 
   const config = await loadGameConfig();
   if (!updateCheckerStarted) {
@@ -546,7 +700,13 @@ async function initGame() {
 
 function reportInitializationError(error) {
   console.error('No se pudo iniciar el juego.', error);
-  setStatus('No se pudo cargar la configuración del juego.', 'error');
+  if (translations[state.language]?.initError) {
+    setStatus('initError', 'error');
+  } else {
+    statusPanel.classList.remove('info', 'success');
+    statusPanel.classList.add('error');
+    statusText.textContent = error.message;
+  }
 }
 
 restartButton.addEventListener('click', () => {
@@ -555,6 +715,8 @@ restartButton.addEventListener('click', () => {
 practiceButton.addEventListener('click', () => {
   state.practiceMode = true;
   state.isGameOver = false;
+  state.failedArtwork = null;
+  state.completedGame = false;
   state.currentArtwork = null;
   gameOverBanner.classList.remove('active');
   practiceButton.hidden = true;
@@ -562,6 +724,43 @@ practiceButton.addEventListener('click', () => {
   renderTimeline(true);
   loadNextArtwork();
   timelineEl.querySelector('.dropzone')?.focus();
+});
+languageSelect.addEventListener('change', () => {
+  state.language = languageSelect.value;
+  localStorage.setItem('art_timeline_language', state.language);
+  if (!Object.keys(translations).length) return;
+
+  applyTranslations();
+  renderTimeline();
+  renderCurrentCard();
+
+  if (gameOverBanner.classList.contains('active')) {
+    renderGameOverMessage();
+  }
+
+  if (state.completedGame) {
+    setStatus('winStatus', 'success');
+  } else if (state.failedArtwork) {
+    setStatus('wrongPlacement', 'error', { hint: translate('outOfOrder') });
+  } else if (state.statusKey === 'skippedArtwork' && state.statusParams.artwork) {
+    const artwork = state.statusParams.artwork;
+    setStatus('skippedArtwork', 'info', { title: artworkTitle(artwork), artwork });
+  } else if (state.currentArtwork) {
+    const isPlacementFeedback = ['correct', 'practiceCorrection'].includes(state.statusKey);
+    setStatus(
+      isPlacementFeedback
+        ? (state.practiceMode ? 'practiceStatus' : 'nextArtworkStatus')
+        : state.statusKey,
+      isPlacementFeedback ? 'info' : state.statusType,
+      isPlacementFeedback ? {} : state.statusParams
+    );
+  } else {
+    setStatus(state.statusKey, state.statusType, state.statusParams);
+  }
+
+  if (lightboxOverlay.classList.contains('active')) {
+    renderLightboxLanguage();
+  }
 });
 dismissInstructionsButton.addEventListener('click', () => {
   howToPlayEl.hidden = true;
@@ -584,4 +783,9 @@ document.addEventListener('keydown', (event) => {
   }
 });
 
-void initGame().catch(reportInitializationError);
+async function startGame() {
+  await translationsPromise;
+  await initGame();
+}
+
+void startGame().catch(reportInitializationError);

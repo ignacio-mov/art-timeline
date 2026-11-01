@@ -1,10 +1,12 @@
 import { request as httpsRequest } from 'node:https';
 import { readFile, writeFile } from 'node:fs/promises';
+import { resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const configUrl = new URL('./refresh-artworks.config.json', import.meta.url);
 const datasetUrl = new URL('../artworks.json', import.meta.url);
 
-function validateConfig(config) {
+export function validateConfig(config) {
   if (!config || typeof config !== 'object' || Array.isArray(config)) {
     throw new Error('Refresh config must be a JSON object');
   }
@@ -42,7 +44,7 @@ async function loadConfig() {
   return validateConfig(JSON.parse(contents));
 }
 
-function buildCandidateQuery(config) {
+export function buildCandidateQuery(config) {
   return `
 SELECT ?painting ?sitelinks WHERE {
   ?painting wdt:P31 wd:Q3305213;
@@ -61,7 +63,7 @@ function requiredValue(binding, field, rowIndex) {
   return value;
 }
 
-function toArtwork(binding, rowIndex) {
+export function toArtwork(binding, rowIndex, language) {
   const year = Number(requiredValue(binding, 'year', rowIndex));
   if (!Number.isInteger(year) || year === 0) {
     throw new Error(`Wikidata result ${rowIndex} has an invalid year`);
@@ -78,30 +80,75 @@ function toArtwork(binding, rowIndex) {
     throw new Error(`Wikidata result ${rowIndex} has an invalid image URL`);
   }
 
+  const paintingLabel = requiredValue(binding, 'paintingLabel', rowIndex);
+  const authorLabel = requiredValue(binding, 'authorLabel', rowIndex);
+
   return {
     painting: requiredValue(binding, 'painting', rowIndex),
-    paintingLabel: requiredValue(binding, 'paintingLabel', rowIndex),
-    authorLabel: requiredValue(binding, 'authorLabel', rowIndex),
+    creator: requiredValue(binding, 'author', rowIndex),
+    paintingLabel,
+    authorLabel,
+    labels: {
+      [language]: {
+        title: paintingLabel,
+        author: authorLabel
+      }
+    },
     year: String(year),
     image,
     sitelinks: requiredValue(binding, 'sitelinks', rowIndex)
   };
 }
 
-function buildArtworkQuery(candidates, config) {
+export function addArtworkLanguage(artworks, bindings, language) {
+  const artworksByCreator = new Map(artworks.map((artwork) => [
+    `${artwork.painting}\u0000${artwork.creator}`,
+    artwork
+  ]));
+  const seenCreators = new Set();
+
+  bindings.forEach((binding, rowIndex) => {
+    const painting = requiredValue(binding, 'painting', rowIndex);
+    const creator = requiredValue(binding, 'author', rowIndex);
+    const creatorKey = `${painting}\u0000${creator}`;
+    const artwork = artworksByCreator.get(creatorKey);
+    if (!artwork) {
+      throw new Error(`Wikidata returned an unexpected artwork for language "${language}"`);
+    }
+    if (seenCreators.has(creatorKey)) {
+      throw new Error(`Wikidata returned duplicate artwork labels for language "${language}"`);
+    }
+
+    artwork.labels[language] = {
+      title: requiredValue(binding, 'paintingLabel', rowIndex),
+      author: requiredValue(binding, 'authorLabel', rowIndex)
+    };
+    seenCreators.add(creatorKey);
+  });
+}
+
+export function buildArtworkQuery(candidates, config, language = config.labelLanguages[0]) {
+  const includeCreators = candidates.length > 0 && candidates.every(({ creator }) => creator);
   const values = candidates
-    .map(({ id, sitelinks }) => `(wd:${id} ${sitelinks})`)
+    .map(({ id, creator, sitelinks }) => (
+      includeCreators
+        ? `(wd:${id} wd:${creator} ${sitelinks})`
+        : `(wd:${id} ${sitelinks})`
+    ))
     .join('\n    ');
+  const valueVariables = includeCreators
+    ? '(?painting ?author ?sitelinks)'
+    : '(?painting ?sitelinks)';
 
   return `
-SELECT ?painting ?paintingLabel ?authorLabel (YEAR(?inception) AS ?year) ?image ?sitelinks WHERE {
-  VALUES (?painting ?sitelinks) {
+SELECT ?painting ?author ?paintingLabel ?authorLabel (YEAR(?inception) AS ?year) ?image ?sitelinks WHERE {
+  VALUES ${valueVariables} {
     ${values}
   }
   ?painting wdt:P170 ?author;
     wdt:P571 ?inception;
     wdt:P18 ?image.
-  SERVICE wikibase:label { bd:serviceParam wikibase:language "${config.labelLanguages.join(',')}". }
+  SERVICE wikibase:label { bd:serviceParam wikibase:language "${language}". }
 }
 ORDER BY DESC(?sitelinks)
 LIMIT ${config.artworkLimit}
@@ -156,7 +203,7 @@ function fetchBindings(query) {
   });
 }
 
-async function main() {
+export async function refreshArtworkDataset() {
   const config = await loadConfig();
   const candidateBindings = await fetchBindings(buildCandidateQuery(config));
   const candidates = candidateBindings.map((binding, index) => {
@@ -172,17 +219,37 @@ async function main() {
     throw new Error('Wikidata query returned no artwork candidates');
   }
 
-  const bindings = await fetchBindings(buildArtworkQuery(candidates, config));
-  if (bindings.length === 0) {
+  const primaryLanguage = config.labelLanguages[0];
+  const primaryBindings = await fetchBindings(buildArtworkQuery(candidates, config, primaryLanguage));
+  if (primaryBindings.length === 0) {
     throw new Error('Wikidata query returned no complete artwork records');
   }
 
-  const artworks = bindings.map(toArtwork);
+  const artworks = primaryBindings.map((binding, index) => toArtwork(binding, index, primaryLanguage));
+
+  for (const language of config.labelLanguages.slice(1)) {
+    const localizedBindings = await fetchBindings(buildArtworkQuery(
+      artworks.map((artwork) => {
+        const match = artwork.painting.match(/^http:\/\/www\.wikidata\.org\/entity\/(Q\d+)$/);
+        const creatorMatch = artwork.creator.match(/^http:\/\/www\.wikidata\.org\/entity\/(Q\d+)$/);
+        if (!match || !creatorMatch) {
+          throw new Error(`Wikidata artwork has invalid identifiers: ${artwork.painting}`);
+        }
+        return { id: match[1], creator: creatorMatch[1], sitelinks: artwork.sitelinks };
+      }),
+      { ...config, artworkLimit: artworks.length },
+      language
+    ));
+    addArtworkLanguage(artworks, localizedBindings, language);
+  }
+
   await writeFile(datasetUrl, `${JSON.stringify(artworks, null, 2)}\n`);
-  console.log(`Wrote ${artworks.length} artwork records to artworks.json`);
+  console.log(`Wrote ${artworks.length} artwork records with ${config.labelLanguages.join(', ')} labels to artworks.json`);
 }
 
-main().catch((error) => {
-  console.error(error);
-  process.exitCode = 1;
-});
+if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1])) {
+  refreshArtworkDataset().catch((error) => {
+    console.error(error);
+    process.exitCode = 1;
+  });
+}

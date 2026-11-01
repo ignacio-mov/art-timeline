@@ -1,7 +1,13 @@
 # Art Timeline
 
 Art Timeline is a browser game for placing famous artworks in chronological
-order. The interface and game instructions are in Spanish.
+order. The interface is available in Spanish and English; use the language
+selector in the header to switch languages. Your choice is saved in the
+browser. Artwork titles and artist names use the available labels in the
+bundled dataset; the refresh workflow fetches labels in Spanish and English.
+Interface translations are maintained in `locales/es.json` and
+`locales/en.json`, and JavaScript fills in the translated page content when
+the game loads.
 
 ## Play locally
 
@@ -59,14 +65,18 @@ publish the update. The refresh is manual so it won't unexpectedly change the
 game's content. In repository settings, allow GitHub Actions to create pull
 requests so the workflow can open its update PR.
 
-Refresh settings live in
+The refresh action writes labels keyed by language in `artworks.json`, using
+the first configured language as its default and fetching each additional
+language separately. When a translation is unavailable, the game falls back
+to the default label. Run the action to update the checked-in dataset with
+these language-specific labels. Refresh settings live in
 [`scripts/refresh-artworks.config.json`](./scripts/refresh-artworks.config.json):
 
 - `artworkLimit` sets the maximum number of complete artworks written.
 - `candidateLimit` sets how many popular painting candidates Wikidata checks;
   keep this at least as large as `artworkLimit`.
-- `labelLanguages` sets the preferred label languages in order (for example,
-  `["es", "en"]`).
+- `labelLanguages` sets the languages to fetch, in default/fallback order (for
+  example, `["es", "en"]`).
 
 Edit the config and run the workflow again to use the new values. The workflow
 can return fewer than `artworkLimit` records if Wikidata has fewer candidates
