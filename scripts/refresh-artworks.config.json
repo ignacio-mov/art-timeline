@@ -1,5 +1,5 @@
 {
-  "candidateLimit": 1500,
-  "artworkLimit": 750,
+  "candidateLimit": 2500,
+  "artworkLimit": 1500,
   "labelLanguages": ["es", "en"]
 }
